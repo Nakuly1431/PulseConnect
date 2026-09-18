@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-pulse-50: #fef2f2;
+  --color-pulse-100: #fee2e2;
+  --color-pulse-200: #fecaca;
+  --color-pulse-500: #ef4444;
+  --color-pulse-600: #dc2626;
+  --color-pulse-700: #b91c1c;
+  --color-pulse-900: #7f1d1d;
+  --color-emergency: #dc2626;
+  --color-ready: #16a34a;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: #F8FAFC;
+  color: #0F172A;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.dark body,
+html.dark body {
+  background-color: #090D16;
+  color: #F1F5F9;
+}
+
+/* Custom Glassmorphism & Emergency Accents */
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.pulse-glow-red {
+  box-shadow: 0 0 20px -3px rgba(220, 38, 38, 0.45);
+}
+
+.pulse-glow-green {
+  box-shadow: 0 0 16px -3px rgba(22, 163, 74, 0.35);
+}
+
+/* Custom interactive range slider */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: #DC2626;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+  transition: transform 0.15s ease-in-out;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Hide scrollbar for clean horizontal pill row */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
