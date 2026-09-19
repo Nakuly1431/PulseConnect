@@ -17,6 +17,12 @@ export function getCompatibleDonorTypes(recipientGroup) {
   return BLOOD_COMPATIBILITY_MAP[recipientGroup] || [recipientGroup];
 }
 
+export function isBloodCompatible(donorGroup, recipientGroup) {
+  if (!donorGroup || !recipientGroup || recipientGroup === 'All') return true;
+  const compatibleTypes = getCompatibleDonorTypes(recipientGroup);
+  return compatibleTypes.includes(donorGroup);
+}
+
 export function formatDistance(km) {
   if (km === null || km === undefined || isNaN(km)) return 'Nearby';
   const num = Number(km);

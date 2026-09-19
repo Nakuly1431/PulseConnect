@@ -21,7 +21,7 @@ import {
   FileCheck,
   AlertCircle
 } from 'lucide-react';
-import { getCooldownInfo } from '../utils/bloodCompatibility';
+import { getCooldownInfo, getCompatibleDonorTypes, isBloodCompatible } from '../utils/bloodCompatibility';
 
 export default function DonorVerificationModal({
   isOpen,
@@ -31,6 +31,10 @@ export default function DonorVerificationModal({
   onConfirmDonation
 }) {
   const cooldownInfo = getCooldownInfo(currentDonor);
+  const donorBloodGroup = currentDonor?.blood_group;
+  const targetBloodGroup = emergency?.blood_group;
+  const compatibleDonorGroups = targetBloodGroup ? getCompatibleDonorTypes(targetBloodGroup) : [];
+  const isCompatible = isBloodCompatible(donorBloodGroup, targetBloodGroup);
 
   // Compulsory Verification Checklist Items
   const [checklist, setChecklist] = useState({
@@ -71,8 +75,8 @@ export default function DonorVerificationModal({
   const verifiedCount = Object.values(checklist).filter(Boolean).length;
   const progressPercent = Math.round((verifiedCount / totalCriteria) * 100);
   
-  // A donor in cooldown can NEVER be fully verified
-  const isFullyVerified = !cooldownInfo.isInCooldown && verifiedCount === totalCriteria && (phoneConfirmed || Boolean(contactPhone.trim()));
+  // A donor in cooldown or incompatible blood type can NEVER be fully verified
+  const isFullyVerified = isCompatible && !cooldownInfo.isInCooldown && verifiedCount === totalCriteria && (phoneConfirmed || Boolean(contactPhone.trim()));
 
   const handleToggleCheck = (key) => {
     if (key === 'cooldown_90_days' && cooldownInfo.isInCooldown) {
@@ -106,6 +110,10 @@ export default function DonorVerificationModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isCompatible) {
+      setShowIncompleteWarning(true);
+      return;
+    }
     if (cooldownInfo.isInCooldown) {
       setShowIncompleteWarning(true);
       return;
@@ -191,10 +199,41 @@ export default function DonorVerificationModal({
                   </div>
                 </div>
 
-                <div className="shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-red-600 text-white font-black shadow-md shadow-red-600/30">
+                <div className={`shrink-0 flex flex-col items-center justify-center w-16 h-16 rounded-2xl font-black shadow-md border ${
+                  isCompatible
+                    ? 'bg-red-600 text-white shadow-red-600/30 border-red-500'
+                    : 'bg-slate-800 text-white shadow-slate-900/40 border-slate-700'
+                }`}>
                   <span className="text-lg leading-none">{emergency.blood_group}</span>
-                  <span className="text-[10px] font-bold text-red-100 uppercase mt-0.5">Match</span>
+                  <span className={`text-[10px] font-bold uppercase mt-1 ${isCompatible ? 'text-emerald-200' : 'text-amber-300'}`}>
+                    {isCompatible ? 'Match ✓' : 'Incompatible'}
+                  </span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Biological Incompatibility Alert */}
+          {!isCompatible && (
+            <div className="p-4 rounded-2xl bg-red-600/10 dark:bg-red-950/45 border-2 border-red-500 text-red-950 dark:text-red-200 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center gap-2 font-black text-sm text-red-700 dark:text-red-400">
+                <AlertTriangle className="w-5 h-5 text-red-600 animate-bounce shrink-0" />
+                <span>ABO/Rh Blood Group Incompatibility Detected</span>
+                <span className="ml-auto px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black uppercase">
+                  Donation Blocked
+                </span>
+              </div>
+              <div className="text-xs space-y-1.5 leading-relaxed">
+                <p>
+                  Your registered blood type is <strong className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/60 font-mono text-red-800 dark:text-red-200">{donorBloodGroup || 'Unknown'}</strong>, but recipient {emergency?.patient_name} strictly requires <strong className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/60 font-mono text-red-800 dark:text-red-200">{targetBloodGroup}</strong>.
+                </p>
+                <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-red-200 dark:border-red-900/50 text-[11px]">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Medically Approved Donor Types for {targetBloodGroup}: </span>
+                  <span className="font-mono font-extrabold text-red-600 dark:text-red-400">{compatibleDonorGroups.join(', ')}</span>
+                </div>
+                <p className="text-[11px] text-red-700 dark:text-red-400/90 pt-0.5">
+                  Transfusing biologically incompatible red blood cells triggers acute hemolytic transfusion reactions (AHTR) which can be fatal. To protect patient and donor safety, PulseConnect strictly prohibits incompatible donation dispatch.
+                </p>
               </div>
             </div>
           )}
@@ -509,7 +548,14 @@ export default function DonorVerificationModal({
           </div>
 
           {/* Compulsory Alert Banner */}
-          {cooldownInfo.isInCooldown ? (
+          {!isCompatible ? (
+            <div className="p-3.5 rounded-2xl bg-red-600/15 dark:bg-red-950/50 border border-red-500 text-red-900 dark:text-red-200 text-xs font-semibold flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <span>
+                <strong>Blood Type Incompatible:</strong> Your blood group ({donorBloodGroup}) cannot be transfused into {targetBloodGroup}. Only {compatibleDonorGroups.join(', ')} donors are biologically eligible.
+              </span>
+            </div>
+          ) : cooldownInfo.isInCooldown ? (
             <div className="p-3.5 rounded-2xl bg-amber-500/15 dark:bg-amber-950/50 border border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <span>
@@ -527,7 +573,7 @@ export default function DonorVerificationModal({
             <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2.5">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
               <span>
-                <strong>Donor Verification Passed:</strong> All medical and safety criteria confirmed. You are certified for emergency donation dispatch!
+                <strong>Donor Verification Passed:</strong> Blood type compatibility ({donorBloodGroup} → {targetBloodGroup}) and all medical criteria confirmed. You are certified for emergency donation dispatch!
               </span>
             </div>
           ) : null}
@@ -547,14 +593,19 @@ export default function DonorVerificationModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!isFullyVerified || isSubmitting || cooldownInfo.isInCooldown}
+            disabled={!isFullyVerified || isSubmitting || cooldownInfo.isInCooldown || !isCompatible}
             className={`w-full sm:w-auto px-6 py-3 rounded-2xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition-all shadow-md ${
-              isFullyVerified && !cooldownInfo.isInCooldown
+              isFullyVerified && !cooldownInfo.isInCooldown && isCompatible
                 ? 'bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-red-600/30 cursor-pointer'
                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
             }`}
           >
-            {cooldownInfo.isInCooldown ? (
+            {!isCompatible ? (
+              <>
+                <Lock className="w-4 h-4 text-red-500" />
+                <span>Incompatible Blood ({donorBloodGroup || '—'} → {targetBloodGroup})</span>
+              </>
+            ) : cooldownInfo.isInCooldown ? (
               <>
                 <Lock className="w-4 h-4 text-amber-500" />
                 <span>Blocked: In Cooldown ({cooldownInfo.daysRemaining}d Left)</span>

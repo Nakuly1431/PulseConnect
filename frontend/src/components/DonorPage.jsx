@@ -20,7 +20,7 @@ import {
   ArrowRight,
   Lock
 } from 'lucide-react';
-import { formatTimeAgo, getCooldownInfo } from '../utils/bloodCompatibility';
+import { formatTimeAgo, getCooldownInfo, isBloodCompatible } from '../utils/bloodCompatibility';
 
 export default function DonorPage({
   emergencies = [],
@@ -290,6 +290,8 @@ export default function DonorPage({
             <div className="space-y-4">
               {emergencies.map(emergency => {
                 const isImmediate = emergency.urgency_level === 'Immediate';
+                const hasDonorGroup = donorData.blood_group && donorData.blood_group !== '—';
+                const isCompatible = isBloodCompatible(donorData.blood_group, emergency.blood_group);
                 return (
                   <div
                     key={emergency.id}
@@ -303,7 +305,11 @@ export default function DonorPage({
                       
                       {/* Emergency Case Info */}
                       <div className="flex items-start gap-3.5">
-                        <div className="w-14 h-14 rounded-2xl bg-red-600 text-white flex flex-col items-center justify-center font-black shadow-md shadow-red-600/30 shrink-0">
+                        <div className={`w-14 h-14 rounded-2xl text-white flex flex-col items-center justify-center font-black shadow-md shrink-0 ${
+                          hasDonorGroup && !isCompatible
+                            ? 'bg-slate-700 shadow-slate-800/30'
+                            : 'bg-red-600 shadow-red-600/30'
+                        }`}>
                           <span className="text-lg leading-none">{emergency.blood_group}</span>
                           <span className="text-[10px] font-bold text-red-100 uppercase mt-0.5">Needed</span>
                         </div>
@@ -318,6 +324,25 @@ export default function DonorPage({
                             }`}>
                               {emergency.urgency_level} Urgency
                             </span>
+                            {hasDonorGroup && (
+                              isCompatible ? (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                                  title={`Your blood group (${donorData.blood_group}) is biologically compatible with recipient (${emergency.blood_group})`}
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>Compatible Match</span>
+                                </span>
+                              ) : (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-900/60"
+                                  title={`Your blood group (${donorData.blood_group}) cannot be transfused into recipient (${emergency.blood_group})`}
+                                >
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>Incompatible Blood</span>
+                                </span>
+                              )
+                            )}
                             {emergency.posted_by_verified_hospital && (
                               <span 
                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm shadow-emerald-500/25 border border-emerald-500/40"
@@ -352,12 +377,19 @@ export default function DonorPage({
                         <button
                           onClick={() => onRespondToEmergency(emergency)}
                           className={`w-full sm:w-auto px-5 py-3 rounded-xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
-                            cooldownInfo.isInCooldown
+                            hasDonorGroup && !isCompatible
+                              ? 'bg-slate-800 hover:bg-slate-700 text-red-300 border border-red-500/40'
+                              : cooldownInfo.isInCooldown
                               ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
                               : 'bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-red-600/25'
                           }`}
                         >
-                          {cooldownInfo.isInCooldown ? (
+                          {hasDonorGroup && !isCompatible ? (
+                            <>
+                              <Lock className="w-4 h-4 text-red-400" />
+                              <span>Incompatible Blood Type</span>
+                            </>
+                          ) : cooldownInfo.isInCooldown ? (
                             <>
                               <Lock className="w-4 h-4 text-amber-400" />
                               <span>In Cooldown ({cooldownInfo.daysRemaining}d Left)</span>
@@ -370,7 +402,11 @@ export default function DonorPage({
                           )}
                         </button>
                         <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center sm:text-right w-full">
-                          {cooldownInfo.isInCooldown ? 'Blocked by 90-day cooldown' : 'Compulsory Verification'}
+                          {hasDonorGroup && !isCompatible
+                            ? `Requires ${emergency.blood_group} donor`
+                            : cooldownInfo.isInCooldown
+                            ? 'Blocked by 90-day cooldown'
+                            : 'Compulsory Verification'}
                         </span>
                       </div>
 

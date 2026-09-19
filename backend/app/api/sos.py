@@ -234,15 +234,26 @@ def respond_to_sos(
     today = date.today()
     donor_id = payload.donor_id if payload and payload.donor_id else None
     if not donor_id:
-        # Pick first available matching donor who is NOT currently in cooldown
+        # Pick first available matching donor who is compatible AND NOT currently in cooldown
+        compatible_groups = get_compatible_donor_types(emergency.blood_group)
         first_donor = db.query(User).filter(
             User.is_available == True,
+            User.blood_group.in_(compatible_groups),
             or_(User.cooldown_until == None, User.cooldown_until <= today)
         ).first()
         if first_donor:
             donor_id = first_donor.id
 
     donor = db.query(User).filter(User.id == donor_id).first() if donor_id else None
+
+    # CRITICAL: Enforce ABO/Rh blood compatibility matrix
+    if donor and emergency.blood_group:
+        compatible_groups = get_compatible_donor_types(emergency.blood_group)
+        if donor.blood_group not in compatible_groups:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Incompatible Blood Group: Donor has blood group '{donor.blood_group}', but patient requires '{emergency.blood_group}'. Compatible donor types are: {', '.join(compatible_groups)}."
+            )
 
     # CRITICAL: Enforce biological cooldown & previous donation history
     if donor and donor.cooldown_until and donor.cooldown_until > today:
