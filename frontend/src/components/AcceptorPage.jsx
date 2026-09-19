@@ -25,8 +25,6 @@ export default function AcceptorPage({
   isLoading = false,
   selectedBloodGroup,
   onSelectBloodGroup,
-  radiusKm,
-  onChangeRadius,
   searchQuery,
   onChangeSearchQuery,
   onlyAvailable,
@@ -63,8 +61,8 @@ export default function AcceptorPage({
             </h1>
 
             <p className="mt-3 text-xs sm:text-base text-slate-300 font-medium leading-relaxed">
-              Instantly connect with verified volunteer donors within your local hospital radius, 
-              or trigger a citywide emergency SOS broadcast to notify off-duty medical donors immediately.
+              Instantly connect with verified volunteer donors across your city, district, and region, 
+              or trigger an emergency SOS broadcast to notify volunteer medical donors immediately.
             </p>
 
             <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -206,7 +204,7 @@ export default function AcceptorPage({
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white">Find Nearby Donors</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Filter by blood group, locality, distance radius, and real-time availability.
+              Filter by blood group, city, district, locality, and real-time availability.
             </p>
           </div>
         </div>
@@ -214,8 +212,6 @@ export default function AcceptorPage({
         <DonorSearch
           selectedBloodGroup={selectedBloodGroup}
           onSelectBloodGroup={onSelectBloodGroup}
-          radiusKm={radiusKm}
-          onChangeRadius={onChangeRadius}
           searchQuery={searchQuery}
           onChangeSearchQuery={onChangeSearchQuery}
           onlyAvailable={onlyAvailable}
@@ -237,14 +233,13 @@ export default function AcceptorPage({
             <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Matching Donors in this Range</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Matching Donors Found</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-              Try increasing your radius slider (e.g. up to 30 or 50 km) or selecting "All" blood groups to find all possible donors.
+              Try selecting "All" blood groups or clearing the city search to find available donors across India.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button
                 onClick={() => {
-                  onChangeRadius(30);
                   onSelectBloodGroup('All');
                   onChangeSearchQuery('');
                   onToggleOnlyAvailable(false);

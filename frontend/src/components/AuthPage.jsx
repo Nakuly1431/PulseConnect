@@ -15,7 +15,6 @@ import {
   Sparkles,
   ArrowLeft,
   Compass,
-  Crosshair,
   Building2,
   Navigation2,
   Globe2
@@ -42,9 +41,9 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
   const [customCityName, setCustomCityName] = useState('');
   const [localArea, setLocalArea] = useState('');
 
-  // GPS Live Detection State
-  const [isDetectingGps, setIsDetectingGps] = useState(false);
-  const [gpsStatus, setGpsStatus] = useState(null); // { type: 'success'|'error'|'info', message: string, lat?: number, lng?: number }
+  const [accountRole, setAccountRole] = useState('donor_acceptor'); // 'donor_acceptor' | 'hospital'
+  const [hospitalName, setHospitalName] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
 
   const [registerData, setRegisterData] = useState({
     full_name: '',
@@ -52,8 +51,6 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     phone_number: '',
     password: '',
     blood_group: 'O+',
-    latitude: 12.9716,
-    longitude: 77.5946,
     agree_terms: true
   });
 
@@ -84,21 +81,10 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       setSelectedCity(firstCity.name);
       setIsCustomCity(false);
       setCustomCityName('');
-      setRegisterData(prev => ({
-        ...prev,
-        latitude: firstCity.lat,
-        longitude: firstCity.lng
-      }));
     } else if (sData) {
       setSelectedCity('Other');
       setIsCustomCity(true);
-      setRegisterData(prev => ({
-        ...prev,
-        latitude: sData.lat,
-        longitude: sData.lng
-      }));
     }
-    setGpsStatus(null);
   };
 
   // Handle City Dropdown Change
@@ -106,29 +92,10 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     if (cityName === 'OTHER_CUSTOM') {
       setIsCustomCity(true);
       setSelectedCity('Other');
-      // Keep state default coordinates
-      const sData = getStateData(selectedState);
-      if (sData) {
-        setRegisterData(prev => ({
-          ...prev,
-          latitude: sData.lat,
-          longitude: sData.lng
-        }));
-      }
     } else {
       setIsCustomCity(false);
       setSelectedCity(cityName);
-      const sData = getStateData(selectedState);
-      const foundCity = sData?.cities?.find(c => c.name === cityName);
-      if (foundCity) {
-        setRegisterData(prev => ({
-          ...prev,
-          latitude: foundCity.lat,
-          longitude: foundCity.lng
-        }));
-      }
     }
-    setGpsStatus(null);
   };
 
   // Quick Select Regional Hub
@@ -137,64 +104,6 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     setSelectedCity(hub.city);
     setIsCustomCity(false);
     setCustomCityName('');
-    setRegisterData(prev => ({
-      ...prev,
-      latitude: hub.lat,
-      longitude: hub.lng
-    }));
-    setGpsStatus({
-      type: 'info',
-      message: `Set to ${hub.city}, ${hub.state} coordinates`
-    });
-  };
-
-  // Live GPS Coordinates Detector using browser Geolocation API
-  const handleDetectGps = () => {
-    if (!navigator.geolocation) {
-      setGpsStatus({
-        type: 'error',
-        message: 'GPS geolocation is not supported by your browser.'
-      });
-      return;
-    }
-
-    setIsDetectingGps(true);
-    setGpsStatus(null);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = Number(position.coords.latitude.toFixed(5));
-        const lng = Number(position.coords.longitude.toFixed(5));
-        setRegisterData(prev => ({
-          ...prev,
-          latitude: lat,
-          longitude: lng
-        }));
-        setIsDetectingGps(false);
-        setGpsStatus({
-          type: 'success',
-          message: `Live GPS Locked: ${lat}° N, ${lng}° E (±${Math.round(position.coords.accuracy)}m accuracy)`,
-          lat,
-          lng
-        });
-      },
-      (error) => {
-        setIsDetectingGps(false);
-        let msg = 'Unable to acquire live location.';
-        if (error.code === error.PERMISSION_DENIED) {
-          msg = 'Location permission was denied. Default city coordinates are used.';
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = 'GPS signal unavailable. Default city coordinates are used.';
-        } else if (error.code === error.TIMEOUT) {
-          msg = 'Location request timed out. Default city coordinates are used.';
-        }
-        setGpsStatus({
-          type: 'error',
-          message: msg
-        });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
   };
 
   // Handle Register Submit
@@ -207,6 +116,17 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       return;
     }
 
+    if (accountRole === 'hospital') {
+      if (!hospitalName.trim()) {
+        setErrorMessage('Please enter the Hospital / Clinic legal name.');
+        return;
+      }
+      if (!licenseNumber.trim()) {
+        setErrorMessage('Please enter the Medical License / Registration number.');
+        return;
+      }
+    }
+
     const effectiveCity = isCustomCity ? (customCityName.trim() || selectedState) : selectedCity;
     const finalLocality = [localArea.trim(), effectiveCity, selectedState].filter(Boolean).join(', ');
 
@@ -217,12 +137,13 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
         email: registerData.email,
         phone_number: registerData.phone_number,
         password: registerData.password,
-        blood_group: registerData.blood_group,
+        blood_group: accountRole === 'hospital' ? (registerData.blood_group || 'O+') : registerData.blood_group,
         locality: finalLocality,
         city: effectiveCity,
         state: selectedState,
-        latitude: registerData.latitude,
-        longitude: registerData.longitude
+        role: accountRole,
+        hospital_name: accountRole === 'hospital' ? hospitalName.trim() : null,
+        license_number: accountRole === 'hospital' ? licenseNumber.trim() : null
       });
       if (onSuccess) onSuccess();
       else if (onNavigate) onNavigate('donor');
@@ -402,14 +323,95 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
               </div>
               <div className="text-xs text-slate-700 dark:text-slate-300">
                 <span className="font-extrabold text-red-600 dark:text-red-400">Pan-India Registration Active: </span>
-                Donors from any State, District, City, or Town across India can volunteer.
+                Donors & healthcare providers from any State, District, or City across India can volunteer.
               </div>
             </div>
 
-            {/* Full Name */}
+            {/* Account Type Selector: Donor vs Hospital */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                Full Name *
+                Select Account Type *
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  id="select-donor-role-btn"
+                  onClick={() => setAccountRole('donor_acceptor')}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
+                    accountRole === 'donor_acceptor'
+                      ? 'bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Heart className="w-3.5 h-3.5" />
+                  <span>Donor / Acceptor</span>
+                </button>
+                <button
+                  type="button"
+                  id="select-hospital-role-btn"
+                  onClick={() => setAccountRole('hospital')}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
+                    accountRole === 'hospital'
+                      ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Hospital / Clinic</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Hospital Specific Notice & Inputs */}
+            {accountRole === 'hospital' && (
+              <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80 space-y-3 animate-fadeIn">
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-purple-900 dark:text-purple-200 leading-relaxed font-medium">
+                    <strong className="font-bold">Hospital Trust Protocol:</strong> Hospital accounts default to unverified status and are reviewed by PulseConnect administrators. Once verified, your emergency broadcasts are granted the exclusive <strong>"Hospital Verified"</strong> badge.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Hospital / Clinic Name *
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      required
+                      value={hospitalName}
+                      onChange={(e) => setHospitalName(e.target.value)}
+                      placeholder="e.g. Apollo Multi-Specialty Hospital"
+                      className="w-full pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Clinical License / Registration Number *
+                  </label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      required
+                      value={licenseNumber}
+                      onChange={(e) => setLicenseNumber(e.target.value)}
+                      placeholder="e.g. NABH-KA-2026-88192 or State Health Reg No."
+                      className="w-full pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Full Name / Contact Person */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                {accountRole === 'hospital' ? 'Authorized Officer / CMO Name *' : 'Full Name *'}
               </label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
@@ -519,47 +521,10 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                     <span>Donor Location (All Over India) *</span>
                   </label>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    Select your State & City or detect your live coordinates for life-saving emergency proximity.
+                    Select your State & City and enter your local area or hospital for emergency donor matching.
                   </p>
                 </div>
-
-                {/* Live GPS Detection Button */}
-                <button
-                  type="button"
-                  onClick={handleDetectGps}
-                  disabled={isDetectingGps}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-700 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 border border-slate-200 dark:border-slate-700 hover:border-red-300 text-xs font-bold transition-all shrink-0 self-start sm:self-auto"
-                >
-                  {isDetectingGps ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-                      <span>Locking GPS...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Crosshair className="w-3.5 h-3.5 text-red-500" />
-                      <span>Detect My GPS</span>
-                    </>
-                  )}
-                </button>
               </div>
-
-              {/* GPS Status / Feedback Notification */}
-              {gpsStatus && (
-                <div className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${gpsStatus.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
-                  : gpsStatus.type === 'error'
-                    ? 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300'
-                    : 'bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-                  }`}>
-                  {gpsStatus.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                  )}
-                  <span className="font-semibold">{gpsStatus.message}</span>
-                </div>
-              )}
 
               {/* Quick Hub Chips */}
               <div>
@@ -665,7 +630,6 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     Locality / Landmark / Hospital (Optional)
                   </label>
-                  <span className="text-[11px] text-slate-400">Coordinates: {registerData.latitude.toFixed(3)}, {registerData.longitude.toFixed(3)}</span>
                 </div>
                 <div className="relative">
                   <Compass className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

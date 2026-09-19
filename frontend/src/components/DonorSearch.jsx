@@ -1,12 +1,21 @@
 import React from 'react';
-import { Search, Sliders, Filter, Navigation, Info } from 'lucide-react';
+import { Search, Info, MapPin, X } from 'lucide-react';
 import { BLOOD_GROUPS, getCompatibleDonorTypes } from '../utils/bloodCompatibility';
+
+const POPULAR_SEARCH_CITIES = [
+  'Bengaluru',
+  'Delhi',
+  'Mumbai',
+  'Hyderabad',
+  'Chennai',
+  'Kolkata',
+  'Pune',
+  'Ahmedabad'
+];
 
 export default function DonorSearch({
   selectedBloodGroup,
   onSelectBloodGroup,
-  radiusKm,
-  onChangeRadius,
   searchQuery,
   onChangeSearchQuery,
   onlyAvailable,
@@ -28,7 +37,7 @@ export default function DonorSearch({
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-            Haversine proximity algorithm matching verified donors within your emergency radius
+            Pan-India city, state, and regional donor matching for life-saving emergencies
           </p>
         </div>
 
@@ -86,69 +95,58 @@ export default function DonorSearch({
         )}
       </div>
 
-      {/* 2. Interactive Radius Slider & Locality Search */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-
-        {/* Locality & Hospital Text Filter */}
-        <div>
-          <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-            City, State, Locality or Hospital
+      {/* 2. City, State & Locality Search */}
+      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+          <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-red-500" />
+            <span>Search by City, State, Locality or Hospital</span>
           </label>
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onChangeSearchQuery(e.target.value)}
-              placeholder="e.g. Mumbai, Delhi, Bengaluru, Apollo, AIIMS..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 transition-all"
-            />
-          </div>
+          {searchQuery && (
+            <button
+              onClick={() => onChangeSearchQuery('')}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline self-start sm:self-auto"
+            >
+              <X className="w-3 h-3" />
+              <span>Clear Filter</span>
+            </button>
+          )}
         </div>
 
-        {/* Interactive Search Radius Slider */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Search Radius
-            </label>
-            <span className="text-sm font-extrabold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 px-2 py-0.5 rounded-lg border border-red-200 dark:border-red-900/50">
-              Within {radiusKm} km
-            </span>
-          </div>
-
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <input
-            type="range"
-            min="2"
-            max="100"
-            step="1"
-            value={radiusKm}
-            onChange={(e) => onChangeRadius(Number(e.target.value))}
-            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onChangeSearchQuery(e.target.value)}
+            placeholder="Type city (e.g. Mumbai, Delhi, Bengaluru), state, or hospital name..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 transition-all"
           />
-
-          <div className="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 font-medium mt-1.5">
-            <button
-              onClick={() => onChangeRadius(5)}
-              className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              5 km (Immediate)
-            </button>
-            <button
-              onClick={() => onChangeRadius(15)}
-              className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              15 km (City Zone)
-            </button>
-            <button
-              onClick={() => onChangeRadius(50)}
-              className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
-            >
-              50 km (Metro District)
-            </button>
-          </div>
         </div>
 
+        {/* Popular City Filter Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+            Quick Cities:
+          </span>
+          {POPULAR_SEARCH_CITIES.map((city) => {
+            const isActive = searchQuery.toLowerCase() === city.toLowerCase();
+            return (
+              <button
+                key={city}
+                type="button"
+                onClick={() => onChangeSearchQuery(isActive ? '' : city)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  isActive
+                    ? 'bg-red-600 text-white shadow-sm border border-red-600'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {city}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
     </div>

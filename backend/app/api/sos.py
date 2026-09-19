@@ -14,6 +14,7 @@ import logging
 from app.core.config import settings
 from app.core.compatibility import haversine_distance, get_compatible_donor_types
 from app.models.notification import Notification
+from app.api.auth import get_current_user
 
 logger = logging.getLogger("pulseconnect.notifications")
 
@@ -46,14 +47,17 @@ async def create_sos_emergency(
     contact_person: str = Form(...),
     contact_phone: str = Form(...),
     verification_slip: Optional[UploadFile] = File(None),
+    posted_by_verified_hospital: Optional[bool] = Form(False),
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Broadcasts an urgent SOS emergency request.
     Optionally accepts a hospital verification slip / prescription image upload.
+    If posted by an authenticated, verified hospital account, flags request as Hospital Verified.
     """
     slip_rel_path = None
-    if verification_slip and verification_slip.filename:
+    if verification_slip and hasattr(verification_slip, "filename") and verification_slip.filename:
         file_ext = os.path.splitext(verification_slip.filename)[1]
         unique_filename = f"{uuid.uuid4().hex}{file_ext}"
         target_path = settings.UPLOAD_DIR / unique_filename
@@ -63,19 +67,49 @@ async def create_sos_emergency(
             f.write(contents)
         slip_rel_path = f"/uploads/{unique_filename}"
 
+    # Verify hospital credentials: role == 'hospital' AND is_verified == True
+    is_verified_hosp = False
+    if current_user and hasattr(current_user, "role") and current_user.role == "hospital" and getattr(current_user, "is_verified", False):
+        is_verified_hosp = True
+    elif posted_by_verified_hospital and current_user and hasattr(current_user, "role") and current_user.role == "hospital" and getattr(current_user, "is_verified", False):
+        is_verified_hosp = True
+
+    lat_val = 0.0
+    if isinstance(latitude, (int, float)):
+        lat_val = float(latitude)
+    elif isinstance(latitude, str):
+        try:
+            lat_val = float(latitude)
+        except ValueError:
+            lat_val = 0.0
+
+    lng_val = 0.0
+    if isinstance(longitude, (int, float)):
+        lng_val = float(longitude)
+    elif isinstance(longitude, str):
+        try:
+            lng_val = float(longitude)
+        except ValueError:
+            lng_val = 0.0
+
+    units_val = int(units_needed) if isinstance(units_needed, (int, str)) and str(units_needed).isdigit() else 1
+    component_val = component_type if isinstance(component_type, str) else "Whole Blood"
+    urgency_val = urgency_level if isinstance(urgency_level, str) else "Immediate"
+
     emergency = EmergencyRequest(
         patient_name=patient_name,
         blood_group=blood_group.strip().upper(),
-        units_needed=units_needed,
-        component_type=component_type,
+        units_needed=units_val,
+        component_type=component_val,
         hospital_name=hospital_name,
         hospital_locality=hospital_locality,
-        latitude=latitude or 0.0,
-        longitude=longitude or 0.0,
-        urgency_level=urgency_level,
+        latitude=lat_val,
+        longitude=lng_val,
+        urgency_level=urgency_val,
         contact_person=contact_person,
         contact_phone=contact_phone,
         verification_slip_path=slip_rel_path,
+        posted_by_verified_hospital=is_verified_hosp,
         status="Active"
     )
     db.add(emergency)
@@ -171,6 +205,7 @@ def get_active_sos_requests(
             "contact_phone": req.contact_phone,
             "verification_slip_path": req.verification_slip_path,
             "status": req.status,
+            "posted_by_verified_hospital": bool(req.posted_by_verified_hospital),
             "distance_km": dist,
             "created_at": req.created_at
         }

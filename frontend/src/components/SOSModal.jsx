@@ -15,8 +15,6 @@ export default function SOSModal({ isOpen, onClose, onSubmitSOS }) {
     urgency_level: 'Immediate',
     hospital_name: '',
     hospital_locality: '',
-    latitude: 12.9583,
-    longitude: 77.6489,
     contact_person: '',
     contact_phone: '',
     verification_slip: null,
@@ -41,8 +39,6 @@ export default function SOSModal({ isOpen, onClose, onSubmitSOS }) {
   const handleAutofillLocation = () => {
     handleChange('hospital_name', 'Manipal Hospital (Old Airport Road)');
     handleChange('hospital_locality', 'Kodihalli, Bengaluru');
-    handleChange('latitude', 12.9583);
-    handleChange('longitude', 77.6489);
   };
 
   const handleFinalSubmit = async (e) => {
@@ -113,7 +109,7 @@ export default function SOSModal({ isOpen, onClose, onSubmitSOS }) {
               }`}>
                 2
               </span>
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 hidden sm:inline">Hospital GPS</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 hidden sm:inline">Hospital Location</span>
             </div>
 
             <div className={`flex-1 h-0.5 mx-2 sm:mx-3 ${step >= 3 ? 'bg-red-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
@@ -234,7 +230,7 @@ export default function SOSModal({ isOpen, onClose, onSubmitSOS }) {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-2xl bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
                 <div className="flex items-center gap-2 text-xs font-semibold text-red-800 dark:text-red-300">
                   <MapPin className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                  <span>Hospital Proximity Geofence</span>
+                  <span>Hospital Location Details</span>
                 </div>
                 <button
                   type="button"
@@ -271,33 +267,6 @@ export default function SOSModal({ isOpen, onClose, onSubmitSOS }) {
                   placeholder="e.g. Kodihalli / Indiranagar"
                   className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-red-600/20 focus:border-red-600 text-base sm:text-sm font-medium"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
-                    Latitude (Auto-calculated)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={formData.latitude}
-                    onChange={(e) => handleChange('latitude', parseFloat(e.target.value))}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600/20 focus:border-red-600 text-base sm:text-sm font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
-                    Longitude (Auto-calculated)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={formData.longitude}
-                    onChange={(e) => handleChange('longitude', parseFloat(e.target.value))}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-red-600/20 focus:border-red-600 text-base sm:text-sm font-medium"
-                  />
-                </div>
               </div>
             </div>
           )}

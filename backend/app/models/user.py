@@ -20,6 +20,8 @@ class User(Base):
     is_available = Column(Boolean, default=True, index=True)
     is_verified = Column(Boolean, default=False)
     role = Column(String(30), default="donor_acceptor", nullable=False)  # donor_acceptor, hospital, admin
+    hospital_name = Column(String(150), nullable=True)
+    license_number = Column(String(100), nullable=True)
     last_donation_date = Column(Date, nullable=True)
     cooldown_until = Column(Date, nullable=True)
     total_donations = Column(Integer, default=0)

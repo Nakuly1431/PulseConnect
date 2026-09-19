@@ -54,3 +54,60 @@ export function maskPhoneNumber(phone) {
   const suffix = digits.slice(-4);
   return `${prefix} ••••• ${suffix}`;
 }
+
+export function getCooldownInfo(donor) {
+  if (!donor) {
+    return {
+      isInCooldown: false,
+      daysRemaining: 0,
+      cooldownUntil: null,
+      lastDonationDate: null,
+      progressPercent: 100,
+      totalDonations: 0
+    };
+  }
+
+  const cooldownDateStr = donor.cooldown_until;
+  const lastDonationDate = donor.last_donation_date || null;
+  const totalDonations = donor.total_donations || 0;
+
+  if (!cooldownDateStr) {
+    return {
+      isInCooldown: false,
+      daysRemaining: 0,
+      cooldownUntil: null,
+      lastDonationDate,
+      progressPercent: 100,
+      totalDonations
+    };
+  }
+
+  const cooldownDate = new Date(cooldownDateStr);
+  const now = new Date();
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDay = new Date(cooldownDate.getFullYear(), cooldownDate.getMonth(), cooldownDate.getDate());
+  const diffTime = targetDay.getTime() - nowDay.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 0) {
+    const elapsedDays = Math.max(0, 90 - diffDays);
+    const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedDays / 90) * 100)));
+    return {
+      isInCooldown: true,
+      daysRemaining: diffDays,
+      cooldownUntil: cooldownDateStr,
+      lastDonationDate,
+      progressPercent,
+      totalDonations
+    };
+  }
+
+  return {
+    isInCooldown: false,
+    daysRemaining: 0,
+    cooldownUntil: cooldownDateStr,
+    lastDonationDate,
+    progressPercent: 100,
+    totalDonations
+  };
+}

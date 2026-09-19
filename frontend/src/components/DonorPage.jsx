@@ -17,9 +17,10 @@ import {
   Flame,
   Check,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
-import { formatDistance, formatTimeAgo } from '../utils/bloodCompatibility';
+import { formatTimeAgo, getCooldownInfo } from '../utils/bloodCompatibility';
 
 export default function DonorPage({
   emergencies = [],
@@ -32,6 +33,7 @@ export default function DonorPage({
   onNavigateTracker,
   onNavigateAcceptor
 }) {
+  const cooldownInfo = getCooldownInfo(currentDonor);
   // Pre-donation Eligibility Interactive Checklist State
   const [eligibilityChecks, setEligibilityChecks] = useState({
     age: true,
@@ -102,42 +104,89 @@ export default function DonorPage({
             </div>
           </div>
 
-          {/* Quick Donor Readiness Card */}
+          {/* Quick Donor Readiness & Cooldown Card */}
           <div className="lg:w-88 shrink-0 bg-white/15 backdrop-blur-md rounded-2xl p-5 border border-white/20 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-red-100">
-                Duty Readiness
+                {cooldownInfo.isInCooldown ? 'Medical Cooldown' : 'Duty Readiness'}
               </span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
-                isAvailable ? 'bg-emerald-400 text-slate-900' : 'bg-slate-800 text-slate-300'
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                cooldownInfo.isInCooldown
+                  ? 'bg-amber-400 text-slate-950'
+                  : isAvailable
+                  ? 'bg-emerald-400 text-slate-900'
+                  : 'bg-slate-800 text-slate-300'
               }`}>
-                {isAvailable ? '● ON-DUTY' : '○ OFF-DUTY'}
+                {cooldownInfo.isInCooldown
+                  ? `● IN COOLDOWN (${cooldownInfo.daysRemaining}d)`
+                  : isAvailable
+                  ? '● ON-DUTY'
+                  : '○ OFF-DUTY'}
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950/40 border border-white/10 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-black text-white">
-                  {isAvailable ? 'Ready for Dispatches' : 'Standing By (Off-Duty)'}
+            {cooldownInfo.isInCooldown ? (
+              /* When in Cooldown: Pure Read-Only Medical Status (NO switch button) */
+              <div className="p-4 rounded-xl bg-slate-950/40 border border-amber-400/20 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-black text-white flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      <span>90-Day Biological Cooldown</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Next eligible: <strong className="text-amber-300">{cooldownInfo.cooldownUntil}</strong>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Last donation on {cooldownInfo.lastDonationDate || 'record'}
+                    </p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/30 text-amber-300 text-[10px] font-bold uppercase shrink-0">
+                    Rest Period
+                  </span>
                 </div>
-                <div className="text-xs text-slate-300 mt-0.5">
-                  {isAvailable ? 'Broadcasting location to ICUs' : 'Hidden from emergency searches'}
+
+                {/* Replenishment Progress indicator */}
+                <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-400 rounded-full transition-all"
+                    style={{ width: `${cooldownInfo.progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                  <span>Day {Math.max(1, 90 - cooldownInfo.daysRemaining)} of 90</span>
+                  <span>{cooldownInfo.daysRemaining} days left</span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onToggleAvailability}
-                className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  isAvailable ? 'bg-emerald-500' : 'bg-slate-600'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    isAvailable ? 'translate-x-5' : 'translate-x-0'
+            ) : (
+              /* When NOT in Cooldown: Emergency Duty Readiness Switch */
+              <div className="p-4 rounded-xl bg-slate-950/40 border border-white/10 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-black text-white">
+                    {isAvailable ? 'Ready for Dispatches' : 'Standing By (Off-Duty)'}
+                  </div>
+                  <div className="text-xs text-slate-300 mt-0.5">
+                    {isAvailable
+                      ? 'Broadcasting location to ICUs'
+                      : 'Hidden from emergency searches'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onToggleAvailability}
+                  className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isAvailable ? 'bg-emerald-500' : 'bg-slate-600'
                   }`}
-                />
-              </button>
-            </div>
+                  title={isAvailable ? 'Set Off-Duty' : 'Set Ready to Donate'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isAvailable ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
 
             <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs text-red-100">
               <span>Need blood for a patient?</span>
@@ -213,7 +262,7 @@ export default function DonorPage({
                 </h2>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                Critical hospital requests within your metropolitan radius that need immediate donor response.
+                Critical hospital requests matching your regional network that need immediate donor response.
               </p>
             </div>
 
@@ -231,9 +280,9 @@ export default function DonorPage({
               <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3">
                 <CheckCircle2 className="w-7 h-7" />
               </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">All Metropolitan Requests Addressed</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">All Regional Requests Addressed</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                There are currently no active emergency alerts matching your radius. 
+                There are currently no active emergency alerts in your region. 
                 Thank you for staying on-duty and keeping your availability active!
               </p>
             </div>
@@ -269,6 +318,15 @@ export default function DonorPage({
                             }`}>
                               {emergency.urgency_level} Urgency
                             </span>
+                            {emergency.posted_by_verified_hospital && (
+                              <span 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm shadow-emerald-500/25 border border-emerald-500/40"
+                                title="Verified by PulseConnect Medical Administration — Certified Healthcare Facility"
+                              >
+                                <ShieldCheck className="w-3 h-3" />
+                                <span>Hospital Verified</span>
+                              </span>
+                            )}
                             <span className="text-xs text-slate-400 dark:text-slate-500">• {formatTimeAgo(emergency.created_at)}</span>
                           </div>
 
@@ -283,21 +341,37 @@ export default function DonorPage({
                             </span>
                             <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
                               <MapPin className="w-3.5 h-3.5" />
-                              {emergency.hospital_locality} ({formatDistance(emergency.distance_km)})
+                              {emergency.hospital_locality}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Accept Action Button */}
-                      <div className="sm:shrink-0 flex items-center gap-2">
+                      {/* Accept Action Button with Verification Notice */}
+                      <div className="sm:shrink-0 flex flex-col sm:items-end gap-1 w-full sm:w-auto">
                         <button
                           onClick={() => onRespondToEmergency(emergency)}
-                          className="w-full sm:w-auto px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-sm shadow-md shadow-red-600/25 transition-all flex items-center justify-center gap-2"
+                          className={`w-full sm:w-auto px-5 py-3 rounded-xl font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                            cooldownInfo.isInCooldown
+                              ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40'
+                              : 'bg-red-600 hover:bg-red-700 active:scale-95 text-white shadow-red-600/25'
+                          }`}
                         >
-                          <Flame className="w-4 h-4" />
-                          <span>Accept Mission & Respond</span>
+                          {cooldownInfo.isInCooldown ? (
+                            <>
+                              <Lock className="w-4 h-4 text-amber-400" />
+                              <span>In Cooldown ({cooldownInfo.daysRemaining}d Left)</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-4 h-4 text-amber-300" />
+                              <span>Verify & Accept Mission</span>
+                            </>
+                          )}
                         </button>
+                        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-center sm:text-right w-full">
+                          {cooldownInfo.isInCooldown ? 'Blocked by 90-day cooldown' : 'Compulsory Verification'}
+                        </span>
                       </div>
 
                     </div>
@@ -319,31 +393,37 @@ export default function DonorPage({
                 <span>Biological Cooldown</span>
               </div>
               <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
-                donorData.cooldown_until
+                cooldownInfo.isInCooldown
                   ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                   : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
               }`}>
-                {donorData.cooldown_until ? 'Active Cooldown' : '100% Eligible'}
+                {cooldownInfo.isInCooldown ? `Active Cooldown (${cooldownInfo.daysRemaining}d Left)` : '100% Eligible'}
               </span>
             </div>
 
             <div>
               <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
                 <span>Erythrocyte Regeneration</span>
-                <span>{donorData.cooldown_until ? 'Day 42 / 90' : 'Fully Replenished'}</span>
+                <span>{cooldownInfo.isInCooldown ? `Day ${90 - cooldownInfo.daysRemaining} / 90` : 'Fully Replenished'}</span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden mt-1.5 border border-slate-200 dark:border-slate-700">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    donorData.cooldown_until ? 'bg-amber-500 w-1/2' : 'bg-emerald-500 w-full'
+                    cooldownInfo.isInCooldown ? 'bg-amber-500' : 'bg-emerald-500 w-full'
                   }`}
+                  style={{ width: `${cooldownInfo.progressPercent}%` }}
                 />
               </div>
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-              A 90-day biological replenishment interval between red blood cell donations safeguards your hemoglobin 
-              levels and long-term health.
+              {cooldownInfo.isInCooldown ? (
+                <span>
+                  Last donated on <strong className="text-slate-800 dark:text-slate-200">{cooldownInfo.lastDonationDate || 'record'}</strong>. Full replenishment on <strong className="text-slate-800 dark:text-slate-200">{cooldownInfo.cooldownUntil}</strong>.
+                </span>
+              ) : (
+                'A 90-day biological replenishment interval between red blood cell donations safeguards your hemoglobin levels and long-term health.'
+              )}
             </p>
 
             <button

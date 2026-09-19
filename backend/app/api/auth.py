@@ -70,6 +70,8 @@ def register_user(user_in: UserCreate, response: Response, db: Session = Depends
         city=user_in.city,
         state=user_in.state,
         role=user_role,
+        hospital_name=user_in.hospital_name.strip() if user_in.hospital_name else None,
+        license_number=user_in.license_number.strip() if user_in.license_number else None,
         is_available=True,
         is_verified=is_verified_val,
         total_donations=0
@@ -158,6 +160,10 @@ def update_profile(
         user.longitude = profile_in.longitude
     if profile_in.is_available is not None:
         user.is_available = profile_in.is_available
+    if profile_in.hospital_name is not None:
+        user.hospital_name = profile_in.hospital_name.strip()
+    if profile_in.license_number is not None:
+        user.license_number = profile_in.license_number.strip()
 
     db.commit()
     db.refresh(user)

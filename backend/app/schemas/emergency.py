@@ -9,8 +9,8 @@ class EmergencyCreate(BaseModel):
     component_type: str = "Whole Blood"  # Whole Blood, Platelets, Plasma
     hospital_name: str
     hospital_locality: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
     urgency_level: str = "Immediate"  # Immediate, Within 6 Hours, Within 24 Hours
     contact_person: str
     contact_phone: str
@@ -23,13 +23,14 @@ class EmergencyResponse(BaseModel):
     component_type: str
     hospital_name: str
     hospital_locality: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = 0.0
+    longitude: Optional[float] = 0.0
     urgency_level: str
     contact_person: str
     contact_phone: str
     verification_slip_path: Optional[str] = None
     status: str
+    posted_by_verified_hospital: bool = False
     distance_km: Optional[float] = None
     created_at: datetime
 

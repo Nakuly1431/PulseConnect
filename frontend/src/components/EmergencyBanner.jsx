@@ -1,10 +1,10 @@
 import React from 'react';
-import { AlertTriangle, Clock, MapPin, X, ArrowRight, ShieldAlert } from 'lucide-react';
-import { formatDistance } from '../utils/bloodCompatibility';
+import { AlertTriangle, Clock, MapPin, X, ArrowRight, ShieldAlert, Lock } from 'lucide-react';
+import { getCooldownInfo } from '../utils/bloodCompatibility';
 
-
-export default function EmergencyBanner({ emergency, onRespond, onDismiss }) {
+export default function EmergencyBanner({ emergency, onRespond, onDismiss, currentDonor }) {
   if (!emergency) return null;
+  const cooldownInfo = getCooldownInfo(currentDonor);
 
   return (
     <div className="relative bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-md border-b border-red-800 animate-fadeIn">
@@ -20,6 +20,11 @@ export default function EmergencyBanner({ emergency, onRespond, onDismiss }) {
               <span className="px-2 py-0.5 rounded-md bg-white text-red-700 font-extrabold text-xs uppercase tracking-wide">
                 URGENT: {emergency.urgency_level}
               </span>
+              {emergency.posted_by_verified_hospital && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wide shadow-sm flex items-center gap-1">
+                  <span>Hospital Verified ✓</span>
+                </span>
+              )}
               <span className="font-bold underline decoration-white/50">
                 {emergency.patient_name}
               </span>
@@ -31,9 +36,9 @@ export default function EmergencyBanner({ emergency, onRespond, onDismiss }) {
                 <MapPin className="w-3.5 h-3.5 shrink-0" />
                 {emergency.hospital_name}
               </span>
-              {emergency.distance_km && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-white/20">
-                  {formatDistance(emergency.distance_km)}
+              {emergency.hospital_locality && (
+                <span className="text-xs opacity-75">
+                  • {emergency.hospital_locality}
                 </span>
               )}
             </div>
@@ -43,10 +48,24 @@ export default function EmergencyBanner({ emergency, onRespond, onDismiss }) {
           <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 mt-1 sm:mt-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-white/20">
             <button
               onClick={() => onRespond(emergency)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg bg-white text-red-700 font-bold text-xs sm:text-sm hover:bg-red-50 active:scale-95 transition-all shadow-sm"
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg font-extrabold text-xs sm:text-sm transition-all shadow-sm ${
+                cooldownInfo.isInCooldown
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                  : 'bg-white text-red-700 hover:bg-red-50 active:scale-95'
+              }`}
             >
-              <span>Dispatch Now</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              {cooldownInfo.isInCooldown ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>In Cooldown ({cooldownInfo.daysRemaining}d)</span>
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+                  <span>Verify & Dispatch</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
             </button>
             {onDismiss && (
               <button

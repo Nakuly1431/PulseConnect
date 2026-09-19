@@ -81,6 +81,7 @@ def get_all_request_statuses(
             contact_phone=req.contact_phone,
             verification_slip_path=req.verification_slip_path,
             assigned_donor=assigned_donor_info,
+            posted_by_verified_hospital=bool(req.posted_by_verified_hospital),
             created_at=req.created_at,
             accepted_at=accepted_at,
             notes=handshake_notes

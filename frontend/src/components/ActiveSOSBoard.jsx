@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Clock, MapPin, Building, ShieldCheck, Heart, User, Send, Check } from 'lucide-react';
-import { formatTimeAgo, formatDistance } from '../utils/bloodCompatibility';
+import { formatTimeAgo } from '../utils/bloodCompatibility';
 
 export default function ActiveSOSBoard({ emergencies = [], onRespondToEmergency, onViewTracker }) {
   if (!emergencies || emergencies.length === 0) {
@@ -69,13 +69,25 @@ export default function ActiveSOSBoard({ emergencies = [], onRespondToEmergency,
               <div>
                 {/* Header: Urgency & Time */}
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
-                    isImmediate
-                      ? 'bg-red-600 text-white shadow-sm shadow-red-600/30'
-                      : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {item.urgency_level}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
+                      isImmediate
+                        ? 'bg-red-600 text-white shadow-sm shadow-red-600/30'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {item.urgency_level}
+                    </span>
+
+                    {item.posted_by_verified_hospital && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm shadow-emerald-600/25 border border-emerald-500/40"
+                        title="Verified by PulseConnect Medical Administration — Certified Healthcare Facility"
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        <span>Hospital Verified</span>
+                      </span>
+                    )}
+                  </div>
 
                   <span className="flex items-center gap-1 text-xs text-slate-500 font-medium">
                     <Clock className="w-3.5 h-3.5" />
@@ -108,11 +120,6 @@ export default function ActiveSOSBoard({ emergencies = [], onRespondToEmergency,
                   <div className="flex items-center gap-1.5 text-slate-500">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">{item.hospital_locality}</span>
-                    {item.distance_km && (
-                      <span className="font-bold text-red-600 ml-auto">
-                        {formatDistance(item.distance_km)}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

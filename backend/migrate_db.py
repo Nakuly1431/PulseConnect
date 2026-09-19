@@ -32,9 +32,24 @@ def migrate_db(db_path: Path):
     else:
         print("[=] 'role' column already exists in 'users'.")
 
-    # Backfill any nulls
-    cursor.execute("UPDATE users SET role = 'donor_acceptor' WHERE role IS NULL")
-    conn.commit()
+    if "hospital_name" not in cols:
+        print("[+] Adding 'hospital_name' column to 'users' table...")
+        cursor.execute("ALTER TABLE users ADD COLUMN hospital_name VARCHAR(150)")
+        conn.commit()
+
+    if "license_number" not in cols:
+        print("[+] Adding 'license_number' column to 'users' table...")
+        cursor.execute("ALTER TABLE users ADD COLUMN license_number VARCHAR(100)")
+        conn.commit()
+
+    # Check columns in emergency_requests table
+    cursor.execute("PRAGMA table_info(emergency_requests)")
+    emergency_cols = [row[1] for row in cursor.fetchall()]
+
+    if "posted_by_verified_hospital" not in emergency_cols:
+        print("[+] Adding 'posted_by_verified_hospital' column to 'emergency_requests' table...")
+        cursor.execute("ALTER TABLE emergency_requests ADD COLUMN posted_by_verified_hospital BOOLEAN DEFAULT 0")
+        conn.commit()
 
     # Ensure notifications table exists
     cursor.execute("""

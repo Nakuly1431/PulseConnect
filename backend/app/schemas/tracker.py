@@ -27,6 +27,7 @@ class RequestTrackerItem(BaseModel):
     contact_phone: str
     verification_slip_path: Optional[str] = None
     assigned_donor: Optional[AssignedDonorInfo] = None
+    posted_by_verified_hospital: Optional[bool] = False
     created_at: datetime
     accepted_at: Optional[datetime] = None
     notes: Optional[str] = None

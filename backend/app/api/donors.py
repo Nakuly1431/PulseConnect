@@ -20,22 +20,27 @@ router = APIRouter(prefix="/donors", tags=["Donors"])
 @router.get("/search", response_model=list[UserResponse])
 def search_donors(
     blood_group: Optional[str] = Query(None, description="Patient recipient blood group (e.g. A+, O-, etc.) or 'All'"),
-    lat: float = Query(12.9716, description="Search center latitude (default Bangalore center)"),
-    lng: float = Query(77.5946, description="Search center longitude"),
-    radius_km: float = Query(15.0, ge=1.0, le=200.0, description="Search radius in kilometers"),
+    lat: Optional[float] = Query(None, description="Optional search center latitude"),
+    lng: Optional[float] = Query(None, description="Optional search center longitude"),
+    radius_km: Optional[float] = Query(None, description="Optional search radius in kilometers"),
     only_available: bool = Query(True, description="Filter for ready and available donors only"),
     locality: Optional[str] = Query(None, description="Optional locality, city, state, or hospital text query"),
     db: Session = Depends(get_db)
 ):
     """
-    Ultra-fast proximity and medical compatibility search.
-    Implements Haversine distance calculation and blood compatibility rules.
-    Filters out donors in 90-day cooldown.
+    Medical compatibility and locality-based donor search.
+    Filters by blood group, locality/city/state text, and cooldown eligibility.
+    Coordinates and radius are completely optional.
     """
     today = date.today()
+    # Normalize parameters if called directly in code/tests without FastAPI DI
+    bg_str = blood_group if isinstance(blood_group, str) else "All"
+    loc_str = locality if isinstance(locality, str) else None
+    avail_bool = only_available if isinstance(only_available, bool) else True
+
     query = db.query(User)
 
-    if only_available:
+    if avail_bool:
         query = query.filter(User.is_available == True)
 
     # Filter out donors who are actively in 90-day cooldown
@@ -44,14 +49,14 @@ def search_donors(
     )
 
     # Blood group compatibility filter
-    if blood_group and blood_group.strip().upper() != "ALL":
-        target_group = blood_group.strip().upper().replace(" ", "+")
+    if bg_str and bg_str.strip().upper() != "ALL":
+        target_group = bg_str.strip().upper().replace(" ", "+")
         # Find all donor types compatible for this recipient group
         compatible_donor_types = get_compatible_donor_types(target_group)
         query = query.filter(User.blood_group.in_(compatible_donor_types))
 
-    if locality and locality.strip():
-        search_str = f"%{locality.strip()}%"
+    if loc_str and loc_str.strip():
+        search_str = f"%{loc_str.strip()}%"
         query = query.filter(
             or_(
                 User.locality.ilike(search_str),
@@ -62,37 +67,45 @@ def search_donors(
 
     donors = query.all()
 
-    # Compute Haversine distance and filter by radius
+    # Process donors
     results = []
-    for donor in donors:
-        dist = haversine_distance(lat, lng, donor.latitude, donor.longitude)
-        if dist <= radius_km:
-            is_cooldown = bool(donor.cooldown_until and donor.cooldown_until > today)
-            user_dict = {
-                "id": donor.id,
-                "full_name": donor.full_name,
-                "email": donor.email,
-                "phone_number": donor.phone_number,
-                "masked_phone": mask_phone_number(donor.phone_number),
-                "blood_group": donor.blood_group,
-                "latitude": donor.latitude,
-                "longitude": donor.longitude,
-                "locality": donor.locality,
-                "city": donor.city,
-                "state": donor.state,
-                "is_available": donor.is_available,
-                "is_verified": donor.is_verified,
-                "last_donation_date": donor.last_donation_date,
-                "cooldown_until": donor.cooldown_until,
-                "total_donations": donor.total_donations,
-                "distance_km": dist,
-                "is_in_cooldown": is_cooldown,
-                "created_at": donor.created_at
-            }
-            results.append((dist, user_dict))
+    has_coords = isinstance(lat, (int, float)) and isinstance(lng, (int, float)) and lat != 0.0 and lng != 0.0
 
-    # Sort results strictly by distance ascending
-    results.sort(key=lambda x: x[0])
+    for donor in donors:
+        dist = None
+        if has_coords and donor.latitude and donor.longitude:
+            dist = haversine_distance(lat, lng, donor.latitude, donor.longitude)
+            if radius_km and dist > radius_km:
+                continue
+
+        is_cooldown = bool(donor.cooldown_until and donor.cooldown_until > today)
+        cooldown_days = (donor.cooldown_until - today).days if is_cooldown else 0
+        user_dict = {
+            "id": donor.id,
+            "full_name": donor.full_name,
+            "email": donor.email,
+            "phone_number": donor.phone_number,
+            "masked_phone": mask_phone_number(donor.phone_number),
+            "blood_group": donor.blood_group,
+            "latitude": donor.latitude or 0.0,
+            "longitude": donor.longitude or 0.0,
+            "locality": donor.locality,
+            "city": donor.city,
+            "state": donor.state,
+            "is_available": donor.is_available,
+            "is_verified": donor.is_verified,
+            "last_donation_date": donor.last_donation_date,
+            "cooldown_until": donor.cooldown_until,
+            "cooldown_days_remaining": cooldown_days,
+            "total_donations": donor.total_donations,
+            "distance_km": dist,
+            "is_in_cooldown": is_cooldown,
+            "created_at": donor.created_at
+        }
+        results.append((dist if dist is not None else 9999.0, user_dict))
+
+    if has_coords:
+        results.sort(key=lambda x: x[0])
     return [r[1] for r in results]
 
 @router.patch("/toggle-availability", response_model=UserResponse)
@@ -113,16 +126,29 @@ def toggle_availability(
         if not user:
             raise HTTPException(status_code=404, detail="No donor found to toggle")
 
-    if toggle_in and toggle_in.is_available is not None:
-        user.is_available = toggle_in.is_available
-    else:
-        user.is_available = not user.is_available
+    today = date.today()
+    target_available = toggle_in.is_available if (toggle_in and toggle_in.is_available is not None) else (not user.is_available)
 
+    # Cooldown enforcement: Cannot set On-Duty if currently in biological cooldown
+    if target_available and user.cooldown_until and user.cooldown_until > today:
+        days_left = (user.cooldown_until - today).days
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot set On-Duty: You have an active biological cooldown until {user.cooldown_until} ({days_left} days remaining) following your donation on {user.last_donation_date}."
+        )
+
+    user.is_available = target_available
     db.commit()
     db.refresh(user)
 
     res = UserResponse.model_validate(user)
     res.masked_phone = mask_phone_number(user.phone_number)
+    if user.cooldown_until and user.cooldown_until > today:
+        res.is_in_cooldown = True
+        res.cooldown_days_remaining = (user.cooldown_until - today).days
+    else:
+        res.is_in_cooldown = False
+        res.cooldown_days_remaining = 0
     return res
 
 @router.post("/{donor_id}/request", response_model=DonationLogResponse, status_code=status.HTTP_201_CREATED)
@@ -138,6 +164,14 @@ def request_blood_from_donor(
     donor = db.query(User).filter(User.id == donor_id).first()
     if not donor:
         raise HTTPException(status_code=404, detail="Donor not found")
+
+    today = date.today()
+    if donor.cooldown_until and donor.cooldown_until > today:
+        days_left = (donor.cooldown_until - today).days
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Donor is currently in active 90-day cooldown until {donor.cooldown_until} ({days_left} days remaining) and cannot accept donation requests."
+        )
 
     new_log = DonationLog(
         donor_id=donor.id,

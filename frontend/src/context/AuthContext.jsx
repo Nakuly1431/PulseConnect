@@ -8,7 +8,8 @@ const AuthContext = createContext({
   login: async () => {},
   register: async () => {},
   logout: async () => {},
-  refreshUser: async () => {}
+  refreshUser: async () => {},
+  updateUser: () => {}
 });
 
 export function AuthProvider({ children }) {
@@ -73,6 +74,10 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUser = (updatedData) => {
+    setUser(prev => (prev ? { ...prev, ...updatedData } : updatedData));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -82,7 +87,8 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        refreshUser
+        refreshUser,
+        updateUser
       }}
     >
       {children}

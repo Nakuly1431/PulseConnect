@@ -35,6 +35,21 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN hospital_name VARCHAR(150)"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN license_number VARCHAR(100)"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE emergency_requests ADD COLUMN posted_by_verified_hospital BOOLEAN DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
 
     yield
 

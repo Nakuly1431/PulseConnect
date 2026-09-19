@@ -13,6 +13,8 @@ class UserBase(BaseModel):
     city: Optional[str] = "Bengaluru"
     state: Optional[str] = "Karnataka"
     role: Optional[str] = "donor_acceptor"
+    hospital_name: Optional[str] = None
+    license_number: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
@@ -32,6 +34,8 @@ class UserUpdate(BaseModel):
     longitude: Optional[float] = None
     is_available: Optional[bool] = None
     role: Optional[str] = None
+    hospital_name: Optional[str] = None
+    license_number: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -48,6 +52,8 @@ class UserResponse(BaseModel):
     is_available: bool
     is_verified: bool
     role: str = "donor_acceptor"
+    hospital_name: Optional[str] = None
+    license_number: Optional[str] = None
     last_donation_date: Optional[date] = None
     cooldown_until: Optional[date] = None
     cooldown_days_remaining: int = 0

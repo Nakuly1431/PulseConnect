@@ -361,6 +361,16 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
                     <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold">
                       {req.urgency_level}
                     </span>
+
+                    {req.posted_by_verified_hospital && (
+                      <span 
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm shadow-emerald-500/20 border border-emerald-500/30"
+                        title="Verified by PulseConnect Medical Administration — Certified Healthcare Facility"
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        <span>Hospital Verified</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Status Indicator Badge */}

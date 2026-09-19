@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { MapPin, CheckCircle2, ShieldCheck, Phone, Clock, Send, Check, AlertCircle } from 'lucide-react';
-import { formatDistance } from '../utils/bloodCompatibility';
 
 export default function DonorCard({ donor, onRequestBlood }) {
   const [requestStatus, setRequestStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
@@ -82,12 +81,12 @@ export default function DonorCard({ donor, onRequestBlood }) {
           </p>
         </div>
 
-        {/* Donation Statistics & Distance */}
+        {/* Donation Statistics & City / Region */}
         <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
           <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-            <span className="text-slate-400 dark:text-slate-500 block font-medium">Distance</span>
-            <span className="text-slate-900 dark:text-white font-bold text-sm">
-              {formatDistance(donor.distance_km)}
+            <span className="text-slate-400 dark:text-slate-500 block font-medium">City / District</span>
+            <span className="text-slate-900 dark:text-white font-bold text-sm truncate block">
+              {donor.city || 'Regional'}
             </span>
           </div>
           <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
