@@ -36,6 +36,21 @@ def migrate_db(db_path: Path):
     cursor.execute("UPDATE users SET role = 'donor_acceptor' WHERE role IS NULL")
     conn.commit()
 
+    # Ensure notifications table exists
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        request_id INTEGER,
+        message VARCHAR(500) NOT NULL,
+        is_read BOOLEAN DEFAULT 0,
+        created_at DATETIME,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(request_id) REFERENCES emergency_requests(id) ON DELETE CASCADE
+    )
+    """)
+    conn.commit()
+
     # Count rows and roles
     cursor.execute("SELECT role, COUNT(*) FROM users GROUP BY role")
     role_counts = cursor.fetchall()

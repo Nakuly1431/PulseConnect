@@ -217,5 +217,27 @@ export const api = {
   async fetchAdminStats() {
     const response = await apiClient.get('/admin/stats');
     return { data: response.data, isLive: true };
+  },
+
+  // Notifications: Get current authenticated user's notifications
+  async fetchMyNotifications() {
+    try {
+      const response = await apiClient.get('/notifications/me');
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: { unread_count: 0, notifications: [] }, isLive: false };
+    }
+  },
+
+  // Notifications: Mark single notification as read
+  async markNotificationRead(id) {
+    const response = await apiClient.patch(`/notifications/${id}/read`);
+    return { data: response.data, isLive: true };
+  },
+
+  // Notifications: Mark all notifications as read
+  async markAllNotificationsRead() {
+    const response = await apiClient.post('/notifications/mark-all-read');
+    return { data: response.data, isLive: true };
   }
 };

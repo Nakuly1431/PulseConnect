@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Uploads
     UPLOAD_DIR: Path = UPLOAD_DIR
 
+    # Emergency Matching & Notification Radius (km)
+    NOTIFICATION_RADIUS_KM: float = float(os.getenv("NOTIFICATION_RADIUS_KM", "15.0"))
+
     class Config:
         case_sensitive = True
 

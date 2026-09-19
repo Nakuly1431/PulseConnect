@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine, Base, SessionLocal
-from app.api import auth, donors, sos, stats, tracker, admin
+from app.api import auth, donors, sos, stats, tracker, admin, notifications
 
 
 @asynccontextmanager
@@ -76,6 +76,7 @@ app.include_router(sos.router, prefix=settings.API_V1_STR)
 app.include_router(stats.router, prefix=settings.API_V1_STR)
 app.include_router(tracker.router, prefix=settings.API_V1_STR)
 app.include_router(admin.router, prefix=settings.API_V1_STR)
+app.include_router(notifications.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

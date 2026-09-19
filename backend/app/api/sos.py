@@ -3,14 +3,32 @@ import uuid
 from datetime import date, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.emergency import EmergencyRequest
 from app.models.user import User
 from app.models.donation_log import DonationLog
 from app.schemas.emergency import EmergencyResponse, EmergencyRespondRequest
+import logging
 from app.core.config import settings
-from app.core.compatibility import haversine_distance
+from app.core.compatibility import haversine_distance, get_compatible_donor_types
+from app.models.notification import Notification
+
+logger = logging.getLogger("pulseconnect.notifications")
+
+def send_external_notification(donor: User, emergency: EmergencyRequest, message: str):
+    """
+    TODO: Wire to external SMS / Email gateway (e.g. Twilio, AWS SNS, SendGrid).
+    Currently logs and records the notification payload for zero-friction external integration.
+    """
+    try:
+        logger.info(
+            f"[EXTERNAL NOTIFICATION STUB] To: {donor.full_name} <{donor.email}> | "
+            f"Phone: {donor.phone_number} | SOS #{emergency.id} ({emergency.blood_group}): {message}"
+        )
+    except Exception:
+        pass
 
 router = APIRouter(prefix="/sos", tags=["SOS Emergency"])
 
@@ -22,8 +40,8 @@ async def create_sos_emergency(
     component_type: str = Form("Whole Blood"),
     hospital_name: str = Form(...),
     hospital_locality: str = Form(...),
-    latitude: float = Form(...),
-    longitude: float = Form(...),
+    latitude: Optional[float] = Form(0.0),
+    longitude: Optional[float] = Form(0.0),
     urgency_level: str = Form("Immediate"),
     contact_person: str = Form(...),
     contact_phone: str = Form(...),
@@ -52,8 +70,8 @@ async def create_sos_emergency(
         component_type=component_type,
         hospital_name=hospital_name,
         hospital_locality=hospital_locality,
-        latitude=latitude,
-        longitude=longitude,
+        latitude=latitude or 0.0,
+        longitude=longitude or 0.0,
         urgency_level=urgency_level,
         contact_person=contact_person,
         contact_phone=contact_phone,
@@ -64,25 +82,78 @@ async def create_sos_emergency(
     db.commit()
     db.refresh(emergency)
 
+    # Automated Donor Matching & Notification Dispatch
+    try:
+        today = date.today()
+        compatible_groups = get_compatible_donor_types(emergency.blood_group)
+
+        # 1. Query available, non-cooldown donors compatible with emergency blood group
+        donor_query = db.query(User).filter(
+            User.is_available == True,
+            User.blood_group.in_(compatible_groups),
+            (User.cooldown_until == None) | (User.cooldown_until <= today)
+        )
+        eligible_donors = donor_query.all()
+
+        has_sos_coords = bool(
+            isinstance(emergency.latitude, (int, float)) and
+            isinstance(emergency.longitude, (int, float)) and
+            (emergency.latitude != 0.0 or emergency.longitude != 0.0)
+        )
+        radius_limit = getattr(settings, "NOTIFICATION_RADIUS_KM", 15.0)
+
+        notifications_to_add = []
+        for donor in eligible_donors:
+            # Check proximity if coordinates are present
+            if has_sos_coords and donor.latitude and donor.longitude and (donor.latitude != 0.0 or donor.longitude != 0.0):
+                dist = haversine_distance(emergency.latitude, emergency.longitude, donor.latitude, donor.longitude)
+                if dist > radius_limit:
+                    continue
+
+            notif_msg = (
+                f"Urgent SOS Alert: {emergency.units_needed} unit(s) of {emergency.blood_group} {emergency.component_type} "
+                f"needed for {emergency.patient_name} at {emergency.hospital_name} ({emergency.hospital_locality})."
+            )
+
+            notif = Notification(
+                user_id=donor.id,
+                request_id=emergency.id,
+                message=notif_msg,
+                is_read=False
+            )
+            notifications_to_add.append(notif)
+            send_external_notification(donor, emergency, notif_msg)
+
+        if notifications_to_add:
+            db.add_all(notifications_to_add)
+            db.commit()
+    except Exception as err:
+        logger.error(f"Failed to dispatch SOS notifications: {err}")
+
     return emergency
 
 @router.get("/active", response_model=list[EmergencyResponse])
 def get_active_sos_requests(
-    lat: Optional[float] = Query(None, description="Current user latitude for distance sorting"),
-    lng: Optional[float] = Query(None, description="Current user longitude"),
+    city: Optional[str] = Query(None, description="Optional city filter"),
+    lat: Optional[float] = Query(None, description="Optional user latitude"),
+    lng: Optional[float] = Query(None, description="Optional user longitude"),
     db: Session = Depends(get_db)
 ):
     """
-    Fetch all active SOS emergency broadcasts sorted by urgency, proximity, and timestamp.
+    Fetch all active SOS emergency broadcasts sorted by urgency and recency.
     """
-    emergencies = db.query(EmergencyRequest).filter(EmergencyRequest.status == "Active").all()
+    query = db.query(EmergencyRequest).filter(EmergencyRequest.status == "Active")
+    city_str = city if isinstance(city, str) else None
+    if city_str and city_str.strip():
+        query = query.filter(EmergencyRequest.hospital_locality.ilike(f"%{city_str.strip()}%"))
+    emergencies = query.all()
     
     results = []
     urgency_priority = {"Immediate": 0, "Within 6 Hours": 1, "Within 24 Hours": 2}
 
     for req in emergencies:
         dist = None
-        if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+        if isinstance(lat, (int, float)) and isinstance(lng, (int, float)) and lat != 0.0:
             dist = haversine_distance(lat, lng, req.latitude, req.longitude)
             
         res_dict = {
@@ -104,10 +175,10 @@ def get_active_sos_requests(
             "created_at": req.created_at
         }
         priority_val = urgency_priority.get(req.urgency_level, 3)
-        dist_val = dist if dist is not None else 9999.0
-        results.append((priority_val, dist_val, res_dict))
+        created_timestamp = req.created_at.timestamp() if req.created_at else 0
+        # Sort by priority first (0 is highest), then newest created_at descending
+        results.append((priority_val, -created_timestamp, res_dict))
 
-    # Sort by urgency first, then distance ascending
     results.sort(key=lambda x: (x[0], x[1]))
     return [r[2] for r in results]
 
@@ -125,14 +196,26 @@ def respond_to_sos(
     if not emergency:
         raise HTTPException(status_code=404, detail="Emergency request not found")
 
+    today = date.today()
     donor_id = payload.donor_id if payload and payload.donor_id else None
     if not donor_id:
-        # Pick first available matching donor if not supplied
-        first_donor = db.query(User).filter(User.is_available == True).first()
+        # Pick first available matching donor who is NOT currently in cooldown
+        first_donor = db.query(User).filter(
+            User.is_available == True,
+            or_(User.cooldown_until == None, User.cooldown_until <= today)
+        ).first()
         if first_donor:
             donor_id = first_donor.id
 
     donor = db.query(User).filter(User.id == donor_id).first() if donor_id else None
+
+    # CRITICAL: Enforce biological cooldown & previous donation history
+    if donor and donor.cooldown_until and donor.cooldown_until > today:
+        days_left = (donor.cooldown_until - today).days
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Biological Cooldown Active: Donor last donated on {donor.last_donation_date}. You must wait 90 days between blood donations. You have {days_left} day(s) remaining until {donor.cooldown_until}."
+        )
 
     # Create handshake log
     handshake = DonationLog(
@@ -150,6 +233,7 @@ def respond_to_sos(
         donor.cooldown_until = today + timedelta(days=90)
         donor.total_donations += 1
         donor.is_available = False
+        donor.is_verified = True
 
     # Mark the emergency request as Fulfilled so it is cleared from active board
     emergency.status = "Fulfilled"
