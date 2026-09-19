@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Radio, Heart, User, Search, ShieldCheck, LogIn } from 'lucide-react';
+import { Activity, Radio, Heart, User, Search, ShieldCheck, LogIn, Clock } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,6 +8,8 @@ export default function Navbar({
   onOpenProfile,
   isAvailable,
   onToggleAvailability,
+  isInCooldown = false,
+  cooldownDaysRemaining = 0,
   activeSOSCount = 0,
   currentView = 'acceptor',
   onNavigate
@@ -95,6 +97,22 @@ export default function Navbar({
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
               </button>
+
+              {/* 4. Admin Portal (Admin Only) */}
+              {user?.role === 'admin' && (
+                <button
+                  id="nav-admin-btn"
+                  onClick={() => onNavigate && onNavigate('admin')}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl transition-all ${
+                    currentView === 'admin'
+                      ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
+                      : 'text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Admin</span>
+                </button>
+              )}
             </nav>
 
             {/* Right Navigation & Action Controls */}
@@ -103,19 +121,31 @@ export default function Navbar({
               {/* 1-Click Theme Toggle Button (Icon-Only, No Text) */}
               <ThemeToggle />
 
-              {/* Quick Donor Availability Switch */}
-              <button
-                onClick={onToggleAvailability}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all duration-200 ${
-                  isAvailable
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 shadow-sm shadow-emerald-500/10'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-                title="Toggle your availability as a donor"
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${isAvailable ? 'bg-emerald-600 shadow-sm shadow-emerald-500' : 'bg-slate-400'}`} />
-                <span className="hidden lg:inline">{isAvailable ? 'Ready to Donate' : 'Off-Duty'}</span>
-              </button>
+              {/* Quick Donor Availability Switch or Cooldown Indicator */}
+              {isInCooldown ? (
+                <button
+                  onClick={onToggleAvailability}
+                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 transition-all cursor-not-allowed shadow-sm"
+                  title={`Biological Cooldown Active: ${cooldownDaysRemaining} days remaining. You cannot switch On-Duty until recovery completes.`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="hidden lg:inline">In Cooldown ({cooldownDaysRemaining}d)</span>
+                  <span className="lg:hidden">Cooldown ({cooldownDaysRemaining}d)</span>
+                </button>
+              ) : (
+                <button
+                  onClick={onToggleAvailability}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all duration-200 ${
+                    isAvailable
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/70 shadow-sm shadow-emerald-500/10'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                  title="Toggle your availability as a donor"
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${isAvailable ? 'bg-emerald-600 shadow-sm shadow-emerald-500' : 'bg-slate-400'}`} />
+                  <span className="hidden lg:inline">{isAvailable ? 'Ready to Donate' : 'Off-Duty'}</span>
+                </button>
+              )}
 
               {/* High-Contrast SOS Emergency Button (No "Broadcast" Word) */}
               <button
@@ -136,9 +166,14 @@ export default function Navbar({
               {/* Profile or Sign In Button */}
               {isAuthenticated ? (
                 <button
+                  id="nav-profile-btn"
                   onClick={onOpenProfile}
-                  className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  title="Donor Profile & Cooldown Status"
+                  className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 rounded-xl border transition-all ${
+                    currentView === 'profile'
+                      ? 'bg-red-50 dark:bg-red-950/60 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 font-bold shadow-sm'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="Donor Profile & Dossier"
                 >
                   <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-black shrink-0">
                     {user?.blood_group || user?.full_name?.charAt(0) || <User className="w-3.5 h-3.5" />}
@@ -233,16 +268,17 @@ export default function Navbar({
             </span>
           </button>
 
-          {/* 5. Profile or Sign In */}
+          {/* 5. Profile */}
           <button
-            onClick={() => isAuthenticated ? onOpenProfile() : onNavigate && onNavigate('login')}
+            id="mobile-nav-profile-btn"
+            onClick={onOpenProfile}
             className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
-              currentView === 'login' || currentView === 'register'
+              currentView === 'profile' || currentView === 'login' || currentView === 'register'
                 ? 'text-red-600 dark:text-red-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <div className={`p-1 rounded-lg ${currentView === 'login' || currentView === 'register' ? 'bg-red-50 dark:bg-red-950/60' : ''}`}>
+            <div className={`p-1 rounded-lg ${currentView === 'profile' || currentView === 'login' || currentView === 'register' ? 'bg-red-50 dark:bg-red-950/60' : ''}`}>
               {isAuthenticated ? (
                 <div className="w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-black">
                   {user?.blood_group || user?.full_name?.charAt(0) || <User className="w-3.5 h-3.5" />}
@@ -253,6 +289,24 @@ export default function Navbar({
             </div>
             <span className="text-[10px] mt-0.5">{isAuthenticated ? 'Profile' : 'Sign In'}</span>
           </button>
+
+          {/* 6. Admin Portal (Mobile - Admin Only) */}
+          {user?.role === 'admin' && (
+            <button
+              id="mobile-nav-admin-btn"
+              onClick={() => onNavigate && onNavigate('admin')}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                currentView === 'admin'
+                  ? 'text-purple-600 dark:text-purple-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <div className={`p-1 rounded-lg ${currentView === 'admin' ? 'bg-purple-50 dark:bg-purple-950/60' : ''}`}>
+                <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <span className="text-[10px] mt-0.5">Admin</span>
+            </button>
+          )}
         </div>
       </nav>
     </>

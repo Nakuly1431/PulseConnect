@@ -7,9 +7,13 @@ import RequestStatusTracker from './components/RequestStatusTracker';
 import AuthPage from './components/AuthPage';
 import SOSModal from './components/SOSModal';
 import ProfileDrawer from './components/ProfileDrawer';
+import ProfilePage from './components/ProfilePage';
+import AdminPage from './components/AdminPage';
+import DonorVerificationModal from './components/DonorVerificationModal';
 import { api } from './services/api';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AlertCircle, CheckCircle2, Heart } from 'lucide-react';
+import { getCooldownInfo } from './utils/bloodCompatibility';
 
 export default function App() {
   return (
@@ -33,7 +37,6 @@ function AppContent() {
 
   // Search Filters for Acceptor Portal
   const [selectedBloodGroup, setSelectedBloodGroup] = useState('All');
-  const [radiusKm, setRadiusKm] = useState(15);
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(true);
 
@@ -44,6 +47,8 @@ function AppContent() {
   // Modals & Drawers
   const [isSOSModalOpen, setIsSOSModalOpen] = useState(false);
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [pendingEmergencyForDonation, setPendingEmergencyForDonation] = useState(null);
   const [dismissedBanner, setDismissedBanner] = useState(false);
 
   // Toast Notifications
@@ -63,18 +68,15 @@ function AppContent() {
       // 1. Fetch Donors
       const { data: donorList, isLive } = await api.searchDonors({
         blood_group: selectedBloodGroup,
-        radius_km: radiusKm,
         only_available: onlyAvailable,
-        locality: searchQuery,
-        lat: 12.9716,
-        lng: 77.5946
+        locality: searchQuery
       });
       const safeDonors = Array.isArray(donorList) ? donorList : [];
       setDonors(safeDonors);
       setIsLiveServer(isLive);
 
       // 2. Fetch Emergencies
-      const { data: emergencyList } = await api.fetchActiveSOS(12.9716, 77.5946);
+      const { data: emergencyList } = await api.fetchActiveSOS();
       const safeEmergencies = Array.isArray(emergencyList) ? emergencyList : [];
       setEmergencies(safeEmergencies);
 
@@ -86,17 +88,21 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedBloodGroup, radiusKm, onlyAvailable, searchQuery, currentDonor]);
+  }, [selectedBloodGroup, onlyAvailable, searchQuery, currentDonor]);
 
   // Sync currentDonor with authenticated user
   useEffect(() => {
     if (user) {
       setCurrentDonor(user);
-      setIsAvailable(user.is_available ?? true);
+      const cooldown = getCooldownInfo(user);
+      setIsAvailable(cooldown.isInCooldown ? false : (user.is_available ?? true));
     } else {
       setCurrentDonor(null);
     }
   }, [user]);
+
+  const activeDonor = user || currentDonor;
+  const cooldownInfo = getCooldownInfo(activeDonor);
 
   useEffect(() => {
     loadData();
@@ -106,6 +112,19 @@ function AppContent() {
 
   // Handle Toggle Donor Availability
   const handleToggleAvailability = async () => {
+    const active = user || currentDonor;
+    const activeCooldown = getCooldownInfo(active);
+
+    // If in cooldown, strictly block switching to On-Duty!
+    if (activeCooldown.isInCooldown) {
+      setIsAvailable(false);
+      addToast(
+        `Biological Cooldown Active: ${activeCooldown.daysRemaining} days left until ${activeCooldown.cooldownUntil}. You cannot go On-Duty during red cell replenishment.`,
+        'error'
+      );
+      return;
+    }
+
     const nextState = !isAvailable;
     setIsAvailable(nextState); // Optimistic UI
     try {
@@ -115,8 +134,9 @@ function AppContent() {
         nextState ? 'success' : 'info'
       );
       loadData();
-    } catch {
+    } catch (err) {
       setIsAvailable(!nextState);
+      addToast(err.message || 'Failed to update duty status', 'error');
     }
   };
 
@@ -145,25 +165,43 @@ function AppContent() {
     }
   };
 
-  // Handle Respond to Emergency
-  const handleRespondToEmergency = async (emergency) => {
+  // Handle Respond to Emergency - Enforces Compulsory Pre-Donation Verification Alert
+  const handleRespondToEmergency = (emergency) => {
+    setPendingEmergencyForDonation(emergency);
+    setIsVerificationModalOpen(true);
+  };
+
+  // Handle Confirmed Donation after 100% Compulsory Verification Passes
+  const handleConfirmVerifiedDonation = async (verificationDetails) => {
+    setIsVerificationModalOpen(false);
+    const emergency = pendingEmergencyForDonation;
+    setPendingEmergencyForDonation(null);
+    if (!emergency) return;
+
     // Optimistic UI: immediately remove from active board
     setEmergencies(prev => prev.filter(e => e.id !== emergency.id));
     
     try {
+      const verifiedNotes = `Verified Donor (${currentDonor?.full_name || 'Volunteer'}) - 6/6 Compulsory Pre-Donation Standards Verified at ${new Date().toLocaleTimeString()} [Phone: ${verificationDetails.verifiedPhone || currentDonor?.phone_number || 'Confirmed'}]`;
       await api.respondToSOS(emergency.id, {
         donor_id: currentDonor?.id,
-        notes: 'Dispatched via PulseConnect quick responder'
+        notes: verifiedNotes
       });
       addToast(
-        `Dispatched! You are on mission for ${emergency.patient_name} at ${emergency.hospital_name}`,
+        `Verification Confirmed! You are dispatched for ${emergency.patient_name} at ${emergency.hospital_name}`,
         'success'
       );
       loadData();
     } catch {
-      addToast('Failed to accept emergency.', 'error');
+      addToast('Failed to accept emergency mission.', 'error');
       loadData();
     }
+  };
+
+  const handleCancelVerification = () => {
+    setIsVerificationModalOpen(false);
+    setPendingEmergencyForDonation(null);
+    addToast('Donation cancelled. Mandatory verification was not completed.', 'info');
   };
 
   const topEmergency = !dismissedBanner && Array.isArray(emergencies) && emergencies.find(e => e?.urgency_level === 'Immediate');
@@ -177,15 +215,18 @@ function AppContent() {
           emergency={topEmergency}
           onRespond={handleRespondToEmergency}
           onDismiss={() => setDismissedBanner(true)}
+          currentDonor={user || currentDonor}
         />
       )}
 
       {/* Main Navbar */}
       <Navbar
         onOpenSOS={() => setIsSOSModalOpen(true)}
-        onOpenProfile={() => setIsProfileDrawerOpen(true)}
+        onOpenProfile={() => setCurrentView('profile')}
         isAvailable={isAvailable}
         onToggleAvailability={handleToggleAvailability}
+        isInCooldown={cooldownInfo.isInCooldown}
+        cooldownDaysRemaining={cooldownInfo.daysRemaining}
         isLiveServer={isLiveServer}
         activeSOSCount={emergencies.length}
         currentView={currentView}
@@ -200,8 +241,6 @@ function AppContent() {
             isLoading={isLoading}
             selectedBloodGroup={selectedBloodGroup}
             onSelectBloodGroup={setSelectedBloodGroup}
-            radiusKm={radiusKm}
-            onChangeRadius={setRadiusKm}
             searchQuery={searchQuery}
             onChangeSearchQuery={setSearchQuery}
             onlyAvailable={onlyAvailable}
@@ -222,7 +261,7 @@ function AppContent() {
             onToggleAvailability={handleToggleAvailability}
             currentDonor={currentDonor}
             onRespondToEmergency={handleRespondToEmergency}
-            onOpenProfile={() => setIsProfileDrawerOpen(true)}
+            onOpenProfile={() => setCurrentView('profile')}
             onNavigateTracker={() => setCurrentView('tracker')}
             onNavigateAcceptor={() => setCurrentView('acceptor')}
           />
@@ -235,13 +274,30 @@ function AppContent() {
           />
         )}
 
+        {currentView === 'profile' && (
+          <ProfilePage
+            onNavigateBack={() => setCurrentView('donor')}
+            onNavigateAuth={(tab) => setCurrentView(tab || 'login')}
+            isAvailable={isAvailable}
+            onToggleAvailability={handleToggleAvailability}
+            addToast={addToast}
+          />
+        )}
+
+        {currentView === 'admin' && (
+          <AdminPage
+            onNavigateBack={() => setCurrentView('acceptor')}
+            addToast={addToast}
+          />
+        )}
+
         {(currentView === 'login' || currentView === 'register') && (
           <AuthPage
             initialTab={currentView === 'register' ? 'register' : 'login'}
             onNavigate={setCurrentView}
             onSuccess={() => {
               addToast('Signed in successfully!', 'success');
-              setCurrentView('donor');
+              setCurrentView('profile');
             }}
           />
         )}
@@ -278,7 +334,25 @@ function AppContent() {
             </button>
             <span>•</span>
             <button
-              onClick={() => setCurrentView(isAuthenticated ? 'donor' : 'login')}
+              onClick={() => setCurrentView('profile')}
+              className={`hover:text-red-600 dark:hover:text-red-400 transition-colors ${currentView === 'profile' ? 'font-bold text-red-600 dark:text-red-400' : ''}`}
+            >
+              User Profile
+            </button>
+            {user?.role === 'admin' && (
+              <>
+                <span>•</span>
+                <button
+                  onClick={() => setCurrentView('admin')}
+                  className={`hover:text-purple-600 dark:hover:text-purple-400 transition-colors ${currentView === 'admin' ? 'font-bold text-purple-600 dark:text-purple-400' : 'text-purple-600 dark:text-purple-400'}`}
+                >
+                  Admin Portal
+                </button>
+              </>
+            )}
+            <span>•</span>
+            <button
+              onClick={() => setCurrentView(isAuthenticated ? 'profile' : 'login')}
               className={`hover:text-red-600 dark:hover:text-red-400 transition-colors ${currentView === 'login' || currentView === 'register' ? 'font-bold text-red-600 dark:text-red-400' : ''}`}
             >
               {isAuthenticated ? 'My Donor Account' : 'Sign In / Register'}
@@ -307,6 +381,15 @@ function AppContent() {
           setIsProfileDrawerOpen(false);
           setCurrentView(tab || 'login');
         }}
+      />
+
+      {/* Compulsory Pre-Donation Donor Verification Modal */}
+      <DonorVerificationModal
+        isOpen={isVerificationModalOpen}
+        onClose={handleCancelVerification}
+        emergency={pendingEmergencyForDonation}
+        currentDonor={user || currentDonor}
+        onConfirmDonation={handleConfirmVerifiedDonation}
       />
 
       {/* Toast Notification Stack - clears mobile bottom navigation bar */}

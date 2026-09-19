@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine, Base, SessionLocal
-from app.api import auth, donors, sos, stats, tracker
+from app.api import auth, donors, sos, stats, tracker, admin
 
 
 @asynccontextmanager
@@ -25,6 +25,16 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(30) DEFAULT 'donor_acceptor'"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("UPDATE users SET role = 'donor_acceptor' WHERE role IS NULL"))
+            conn.commit()
+        except Exception:
+            pass
 
     yield
 
@@ -35,16 +45,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Middleware - allows credentials (cookies) for frontend dev servers
+# CORS Middleware - allows localhost dev servers and Vercel deployments
+cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if hasattr(settings, "BACKEND_CORS_ORIGINS"):
+    for origin in settings.BACKEND_CORS_ORIGINS:
+        if origin != "*" and origin not in cors_origins:
+            cors_origins.append(origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,6 +75,7 @@ app.include_router(donors.router, prefix=settings.API_V1_STR)
 app.include_router(sos.router, prefix=settings.API_V1_STR)
 app.include_router(stats.router, prefix=settings.API_V1_STR)
 app.include_router(tracker.router, prefix=settings.API_V1_STR)
+app.include_router(admin.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

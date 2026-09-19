@@ -18,6 +18,15 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+const formatErrorDetail = (detail) => {
+  if (!detail) return null;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(item => item.msg ? `${item.loc?.slice(-1)[0] || 'Field'}: ${item.msg}` : JSON.stringify(item)).join(' | ');
+  }
+  return JSON.stringify(detail);
+};
+
 export const api = {
   // Authentication: Login
   async login(credentials) {
@@ -29,7 +38,10 @@ export const api = {
       return { data: response.data, isLive: true };
     } catch (error) {
       if (error.response?.data?.detail) {
-        throw new Error(error.response.data.detail);
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please verify your backend API URL and ensure the server is online.');
       }
       throw new Error('Invalid email or password');
     }
@@ -45,7 +57,10 @@ export const api = {
       return { data: response.data, isLive: true };
     } catch (error) {
       if (error.response?.data?.detail) {
-        throw new Error(error.response.data.detail);
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      if (!error.response) {
+        throw new Error('Unable to connect to the backend server. Please verify your backend API URL and ensure the server is online.');
       }
       throw new Error('Registration failed. If you already have an account, please log in.');
     }
@@ -72,6 +87,19 @@ export const api = {
     }
   },
 
+  // Authentication: Update Profile
+  async updateProfile(profileData) {
+    try {
+      const response = await apiClient.put('/auth/profile', profileData);
+      return { data: response.data, isLive: true };
+    } catch (error) {
+      if (error.response?.data?.detail) {
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      throw new Error('Failed to update user profile. Please check your data.');
+    }
+  },
+
   // Search Donors
   async searchDonors(params = {}) {
     try {
@@ -89,8 +117,10 @@ export const api = {
       const response = await apiClient.patch('/donors/toggle-availability', { is_available });
       return { data: response.data, isLive: true };
     } catch (error) {
-      console.warn('Toggle availability error:', error.message);
-      return { data: null, isLive: false };
+      if (error.response?.data?.detail) {
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      throw new Error(error.message || 'Failed to toggle availability');
     }
   },
 
@@ -109,9 +139,9 @@ export const api = {
   },
 
   // Fetch Active SOS
-  async fetchActiveSOS(lat = 12.9716, lng = 77.5946) {
+  async fetchActiveSOS(params = {}) {
     try {
-      const response = await apiClient.get('/sos/active', { params: { lat, lng } });
+      const response = await apiClient.get('/sos/active', { params });
       return { data: response.data, isLive: true };
     } catch (error) {
       console.warn('Fetch active SOS error:', error.message);
@@ -155,6 +185,37 @@ export const api = {
     const response = await apiClient.patch(`/tracker/${sourceType}/${rawId}/status`, {
       status: newStatus
     });
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Fetch Pending Verifications
+  async fetchPendingVerifications() {
+    const response = await apiClient.get('/admin/users/pending-verification');
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Verify User
+  async verifyUser(userId) {
+    const response = await apiClient.patch(`/admin/users/${userId}/verify`);
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Fetch All Requests
+  async fetchAdminRequests(status = 'All') {
+    const params = status && status !== 'All' ? { status } : {};
+    const response = await apiClient.get('/admin/requests', { params });
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Delete Request (Moderation)
+  async deleteAdminRequest(requestId) {
+    const response = await apiClient.delete(`/admin/requests/${requestId}`);
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Fetch Platform & Moderation Stats
+  async fetchAdminStats() {
+    const response = await apiClient.get('/admin/stats');
     return { data: response.data, isLive: true };
   }
 };
