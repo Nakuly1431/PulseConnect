@@ -277,7 +277,7 @@ export default function DonorPage({
             <Award className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{donorData.total_donations || 8}</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-white">{donorData.total_donations ?? 0}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Your Verified Donations</div>
           </div>
         </div>
@@ -527,15 +527,19 @@ export default function DonorPage({
                 <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400">
                   Donor Honor Rank
                 </span>
-                <h4 className="text-base font-black text-slate-900 dark:text-white">Life Saver Master</h4>
+                <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  {(donorData.total_donations || 0) >= 5 ? 'Life Saver Master' : (donorData.total_donations || 0) >= 1 ? 'Active Lifesaver' : 'New Volunteer Donor'}
+                </h4>
                 <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                  {donorData.total_donations || 0} verified life-saving contributions
+                  {donorData.total_donations ?? 0} verified life-saving contributions
                 </p>
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-red-200/60 dark:border-red-900/40 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
-              <span>Next Milestone: 10 Donations</span>
-              <span className="font-bold text-red-700 dark:text-red-400">2 to Gold Hero</span>
+              <span>Next Milestone: {(donorData.total_donations || 0) >= 5 ? '10 Donations' : '1st Donation'}</span>
+              <span className="font-bold text-red-700 dark:text-red-400">
+                {(donorData.total_donations || 0) >= 5 ? `${10 - (donorData.total_donations || 0)} to Legend` : (donorData.total_donations || 0) === 0 ? '1 to Bronze Hero' : `${5 - (donorData.total_donations || 0)} to Master`}
+              </span>
             </div>
           </div>
 

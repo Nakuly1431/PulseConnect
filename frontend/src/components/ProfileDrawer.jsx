@@ -104,9 +104,11 @@ export default function ProfileDrawer({
                 </div>
                 <div>
                   <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">Honor Tier</span>
-                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">Life Saver Master</h4>
+                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    {(currentDonor.total_donations || 0) >= 5 ? 'Life Saver Master' : (currentDonor.total_donations || 0) >= 1 ? 'Active Lifesaver' : 'New Volunteer Donor'}
+                  </h4>
                   <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                    {currentDonor.total_donations || 8} Verified Donations Completed
+                    {currentDonor.total_donations ?? 0} Verified Donations Completed
                   </span>
                 </div>
               </div>

@@ -54,6 +54,14 @@ const BLOOD_COMPATIBILITY = {
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
+const getDonorHonor = (totalDonations = 0) => {
+  const count = Number(totalDonations) || 0;
+  if (count >= 10) return { tier: 'Life Saver Legend (Tier 4)', title: 'Life Saver Legend', desc: 'Top 1% proximity lifesaver', color: 'text-amber-300' };
+  if (count >= 5) return { tier: 'Life Saver Master (Tier 3)', title: 'Life Saver Master', desc: 'Top 5% proximity responder', color: 'text-amber-300' };
+  if (count >= 1) return { tier: 'Active Lifesaver (Tier 2)', title: 'Active Lifesaver', desc: 'Verified emergency contributor', color: 'text-emerald-300' };
+  return { tier: 'New Registered Donor (Tier 1)', title: 'Registered Volunteer Donor', desc: 'Standby for first emergency mission', color: 'text-slate-200' };
+};
+
 export default function ProfilePage({
   onNavigateBack,
   onNavigateAuth,
@@ -77,6 +85,7 @@ export default function ProfilePage({
   const donor = user;
   const currentBloodGroup = donor.blood_group || 'O+';
   const compatibility = BLOOD_COMPATIBILITY[currentBloodGroup] || BLOOD_COMPATIBILITY['O+'];
+  const honor = getDonorHonor(donor.total_donations);
 
   // State
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'medical' | 'card' | 'history'
@@ -311,12 +320,12 @@ export default function ProfilePage({
                   {donor.email}
                 </span>
                 <span>•</span>
-                <span>ID: #PULSE-{String(donor.id || 1084).padStart(5, '0')}</span>
+                <span>ID: #PULSE-{donor.id ? String(donor.id).padStart(5, '0') : 'NEW'}</span>
               </div>
 
               <div className="pt-2 flex flex-wrap items-center gap-2 text-xs">
                 <span className="px-2.5 py-1 rounded-xl bg-black/20 text-white font-semibold">
-                  Donor Rank: <strong className="text-amber-300">Life Saver Master (Tier 3)</strong>
+                  Donor Rank: <strong className={honor.color}>{honor.tier}</strong>
                 </span>
                 <span className="px-2.5 py-1 rounded-xl bg-black/20 text-white font-semibold">
                   {compatibility.type}
@@ -329,11 +338,11 @@ export default function ProfilePage({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-col gap-2.5 w-full md:w-auto shrink-0">
             <div className="p-3.5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 text-center md:text-left">
               <span className="text-[10px] uppercase font-bold text-red-100 block">Total Donations</span>
-              <span className="text-xl font-black">{donor.total_donations || 8} Units</span>
+              <span className="text-xl font-black">{donor.total_donations ?? 0} Units</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 text-center md:text-left">
               <span className="text-[10px] uppercase font-bold text-red-100 block">Estimated Impact</span>
-              <span className="text-xl font-black text-emerald-200">~{calculateLivesSaved(donor.total_donations || 8)} Lives Saved</span>
+              <span className="text-xl font-black text-emerald-200">~{calculateLivesSaved(donor.total_donations ?? 0)} Lives Saved</span>
             </div>
           </div>
 
@@ -460,7 +469,7 @@ export default function ProfilePage({
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 font-bold block mb-1">GPS Geolocation Coordinates</span>
                     <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                      Latitude: {donor.latitude || 12.9716}° N | Longitude: {donor.longitude || 77.5946}° E
+                      Latitude: {donor.latitude && donor.latitude !== 0 ? `${donor.latitude}° N` : 'Not calibrated'} | Longitude: {donor.longitude && donor.longitude !== 0 ? `${donor.longitude}° E` : 'Not calibrated'}
                     </span>
                   </div>
                   <button
@@ -552,23 +561,23 @@ export default function ProfilePage({
                   <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
                     Community Honor Rank
                   </span>
-                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">Life Saver Master</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Top 5% proximity responder</p>
+                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">{honor.title}</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{honor.desc}</p>
                 </div>
               </div>
 
               <div className="p-3 rounded-2xl bg-white/70 dark:bg-slate-800/80 border border-amber-200/50 dark:border-amber-900/30 text-xs space-y-1">
                 <div className="flex justify-between font-bold">
                   <span className="text-slate-600 dark:text-slate-300">Total Units Donated</span>
-                  <span className="text-slate-900 dark:text-white font-black">{donor.total_donations || 8} Units</span>
+                  <span className="text-slate-900 dark:text-white font-black">{donor.total_donations ?? 0} Units</span>
                 </div>
                 <div className="flex justify-between font-bold">
                   <span className="text-slate-600 dark:text-slate-300">Lives Potentially Saved</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-black">~{calculateLivesSaved(donor.total_donations || 8)} Patients</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black">~{calculateLivesSaved(donor.total_donations ?? 0)} Patients</span>
                 </div>
                 <div className="flex justify-between font-bold">
                   <span className="text-slate-600 dark:text-slate-300">Response Verification</span>
-                  <span className="text-red-600 dark:text-red-400 font-black">100% Emergency Dispatched</span>
+                  <span className="text-red-600 dark:text-red-400 font-black">{(donor.total_donations || 0) > 0 ? '100% Emergency Dispatched' : 'Standing By'}</span>
                 </div>
               </div>
             </div>
@@ -786,63 +795,49 @@ export default function ProfilePage({
                 <p className="text-xs text-slate-500 dark:text-slate-400">Chronological timeline of blood donation dispatches</p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                {donor.total_donations || 8} Fulfilled
+                {donor.total_donations ?? 0} Fulfilled
               </span>
             </div>
 
-            <div className="space-y-3">
-              {[
-                {
-                  id: 1,
-                  date: "2026-06-15",
-                  hospital: "Manipal Hospital, Old Airport Rd",
-                  patient: "Emergency Trauma Surgery",
-                  type: "Whole Blood Unit",
-                  status: "Completed & Verified",
-                  impact: "3 lives safeguarded"
-                },
-                {
-                  id: 2,
-                  date: "2026-02-10",
-                  hospital: "Apollo Hospitals, Bannerghatta",
-                  patient: "Platelet & Red Cell SOS",
-                  type: "Packed Red Blood Cells",
-                  status: "Completed & Verified",
-                  impact: "Critical ICU unit fulfilled"
-                },
-                {
-                  id: 3,
-                  date: "2025-10-04",
-                  hospital: "Fortis Hospital, Cunningham Rd",
-                  patient: "Cardiac Bypass Support",
-                  type: "Whole Blood Unit",
-                  status: "Completed & Verified",
-                  impact: "Golden Hour emergency response"
-                }
-              ].map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-slate-900 dark:text-white text-sm">{item.hospital}</span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
-                        {item.status}
-                      </span>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-400 font-medium">
-                      {item.patient} • <strong className="text-red-600 dark:text-red-400">{item.type}</strong>
-                    </p>
-                  </div>
-
-                  <div className="text-left sm:text-right text-slate-500 dark:text-slate-400">
-                    <span className="font-bold block text-slate-800 dark:text-slate-200">{item.date}</span>
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{item.impact}</span>
-                  </div>
+            {(!donor.donation_history || donor.donation_history.length === 0) ? (
+              <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+                  <Heart className="w-6 h-6" />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Donation Missions Yet</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
+                    You have not completed any blood donation missions yet. When you respond to an emergency SOS or direct blood request, your verified hospital contributions will appear here.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {donor.donation_history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-slate-900 dark:text-white text-sm">{item.hospital}</span>
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-400 font-medium">
+                        {item.patient} • <strong className="text-red-600 dark:text-red-400">{item.type}</strong>
+                      </p>
+                    </div>
+
+                    <div className="text-left sm:text-right text-slate-500 dark:text-slate-400">
+                      <span className="font-bold block text-slate-800 dark:text-slate-200">{item.date}</span>
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{item.impact}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
