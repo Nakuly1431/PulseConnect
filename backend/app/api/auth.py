@@ -49,10 +49,9 @@ def serialize_user(user: User) -> UserResponse:
 def register_user(user_in: UserCreate, response: Response, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_in.email.lower()).first()
     if existing:
-        # Privacy-preserving error message: does not reveal whether the email exists
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration failed. If you already have an account, please log in."
+            detail="This email is already registered. Please sign in or use a different email."
         )
     
     user_role = user_in.role if user_in.role in ["donor_acceptor", "hospital", "admin"] else "donor_acceptor"

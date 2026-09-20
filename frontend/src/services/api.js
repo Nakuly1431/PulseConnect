@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { MOCK_DONORS, MOCK_EMERGENCIES, MOCK_STATS, MOCK_TRACKER_DATA } from './mockData';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const rawApiUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
+const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -117,7 +118,7 @@ export const api = {
       if (!error.response) {
         throw new Error('Unable to connect to the backend server. Please verify your backend API URL and ensure the server is online.');
       }
-      throw new Error('Registration failed. If you already have an account, please log in.');
+      throw new Error(error.response?.data?.message || error.response?.statusText || 'Registration failed. Please verify your connection and details, then try again.');
     }
   },
 
