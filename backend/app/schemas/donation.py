@@ -13,6 +13,7 @@ class DonationRequestCreate(BaseModel):
     hospital_locality: Optional[str] = None
     requester_name: Optional[str] = None
     requester_phone: Optional[str] = None
+    otp_code: Optional[str] = None
     urgency_level: Optional[str] = "Immediate"
     notes: Optional[str] = None
 

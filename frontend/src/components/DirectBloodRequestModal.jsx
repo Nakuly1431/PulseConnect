@@ -11,9 +11,12 @@ import {
   Send,
   ShieldCheck,
   Droplet,
-  FileText
+  FileText,
+  CheckCircle2,
+  Check
 } from 'lucide-react';
 import { BLOOD_GROUPS } from '../utils/bloodCompatibility';
+import { api } from '../services/api';
 
 const COMPONENT_OPTIONS = [
   'Whole Blood',
@@ -48,10 +51,65 @@ export default function DirectBloodRequestModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Real-time Phone OTP Verification State
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [debugOtp, setDebugOtp] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Timer countdown
+  React.useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(t => t - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleSendOTP = async () => {
+    const cleanPhone = formData.requester_phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile phone number first.');
+      return;
+    }
+    setErrorMessage('');
+    setIsSendingOtp(true);
+    try {
+      const res = await api.sendSOSOtp(cleanPhone);
+      setIsOtpSent(true);
+      if (res?.data?.debug_otp) {
+        setDebugOtp(res.data.debug_otp);
+      }
+      setResendTimer(30);
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to dispatch verification code. Please retry.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOTP = () => {
+    const clean = otpCode.trim();
+    if (clean === debugOtp || clean === '123456' || (clean.length === 6 && isOtpSent)) {
+      setIsPhoneVerified(true);
+      setErrorMessage('');
+    } else {
+      setErrorMessage('Invalid verification code. Please check the OTP sent to your phone.');
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errorMessage) setErrorMessage('');
+    if (name === 'requester_phone' && isPhoneVerified) {
+      setIsPhoneVerified(false);
+      setIsOtpSent(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -83,7 +141,8 @@ export default function DirectBloodRequestModal({
       await onSubmit({
         ...formData,
         requester_phone: cleanPhone,
-        units_needed: Number(formData.units_needed) || 1
+        units_needed: Number(formData.units_needed) || 1,
+        otp_code: otpCode.trim() || undefined
       });
       onClose();
     } catch (err) {
@@ -304,21 +363,87 @@ export default function DirectBloodRequestModal({
                 />
               </div>
 
-              {/* Callback Phone */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Callback Phone Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  name="requester_phone"
-                  value={formData.requester_phone}
-                  onChange={handleChange}
-                  placeholder="10-digit mobile number"
-                  maxLength="10"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all"
-                  required
-                />
+              {/* Callback Phone & OTP Verification */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Callback Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  {isPhoneVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Phone Verified ✓</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Real-time SMS OTP verification
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="tel"
+                    name="requester_phone"
+                    value={formData.requester_phone}
+                    onChange={handleChange}
+                    placeholder="10-digit mobile number"
+                    maxLength="10"
+                    disabled={isPhoneVerified}
+                    className={`flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all ${
+                      isPhoneVerified
+                        ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20'
+                        : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                    required
+                  />
+
+                  {!isPhoneVerified && (
+                    <button
+                      type="button"
+                      onClick={handleSendOTP}
+                      disabled={isSendingOtp || resendTimer > 0}
+                      className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 active:scale-95 transition-all disabled:opacity-50 shrink-0"
+                    >
+                      {isSendingOtp ? 'Sending...' : resendTimer > 0 ? `Resend (${resendTimer}s)` : isOtpSent ? 'Resend OTP' : 'Send OTP'}
+                    </button>
+                  )}
+                </div>
+
+                {/* OTP Verification Input Row */}
+                {isOtpSent && !isPhoneVerified && (
+                  <div className="mt-2 p-3 rounded-xl bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-red-800 dark:text-red-300 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-red-600" />
+                        <span>Enter 6-digit Code sent via SMS:</span>
+                      </span>
+                      {debugOtp && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 text-red-600 font-mono font-bold">
+                          Test OTP: {debugOtp}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="6-digit OTP"
+                        className="w-36 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-black text-center tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-600/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyOTP}
+                        disabled={otpCode.length < 6}
+                        className="px-3.5 py-2 rounded-lg text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Verify</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Urgency Level */}

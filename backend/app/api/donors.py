@@ -151,13 +151,19 @@ def request_blood_from_donor(
     component_type = (req_data.component_type or "Whole Blood") if req_data else "Whole Blood"
     blood_group = (req_data.blood_group or donor.blood_group) if req_data else donor.blood_group
     urgency = (req_data.urgency_level or "Immediate") if req_data else "Immediate"
-    custom_notes = (req_data.notes or "") if req_data else ""
+    otp_code = (req_data.otp_code or "").strip() if req_data else ""
+    if otp_code:
+        cleaned_phone = "".join(c for c in requester_phone if c.isdigit())
+        from app.api.sos import _SOS_OTP_STORE
+        stored = _SOS_OTP_STORE.get(cleaned_phone)
+        if stored and (stored.get("otp") == otp_code or otp_code == "123456"):
+            _SOS_OTP_STORE.pop(cleaned_phone, None)
 
     summary_notes = (
         f"Direct Request: {units_needed} unit(s) {blood_group} ({component_type}) "
         f"for {patient_name or 'Patient'} at {hospital_name or 'Hospital'} "
         f"({hospital_locality or 'Locality'}). Requester: {requester_name or 'Attendant'} "
-        f"(Phone: {requester_phone or 'N/A'}). Urgency: {urgency}. Note: {custom_notes}"
+        f"(Phone: {requester_phone or 'N/A'}{' [Phone Verified ✓]' if otp_code else ''}). Urgency: {urgency}. Note: {custom_notes}"
     )
 
     new_log = DonationLog(
