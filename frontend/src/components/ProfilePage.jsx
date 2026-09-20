@@ -93,6 +93,17 @@ export default function ProfilePage({
   const [copiedCard, setCopiedCard] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [donationHistory, setDonationHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'history' && isAuthenticated) {
+      setIsLoadingHistory(true);
+      api.fetchMyDonationHistory()
+        .then(res => setDonationHistory(res?.data || []))
+        .finally(() => setIsLoadingHistory(false));
+    }
+  }, [activeTab, isAuthenticated]);
 
   // Edit Form State
   const [formData, setFormData] = useState({
@@ -799,7 +810,11 @@ export default function ProfilePage({
               </span>
             </div>
 
-            {(!donor.donation_history || donor.donation_history.length === 0) ? (
+            {isLoadingHistory ? (
+              <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                Loading your verified mission history...
+              </div>
+            ) : donationHistory.length === 0 ? (
               <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
                 <div className="w-12 h-12 mx-auto rounded-2xl bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
                   <Heart className="w-6 h-6" />
@@ -807,13 +822,13 @@ export default function ProfilePage({
                 <div>
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">No Donation Missions Yet</h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-                    You have not completed any blood donation missions yet. When you respond to an emergency SOS or direct blood request, your verified hospital contributions will appear here.
+                    You have not completed any blood donation missions yet. When you respond to an emergency SOS or direct blood request, only your verified hospital contributions will appear here.
                   </p>
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
-                {donor.donation_history.map((item) => (
+                {donationHistory.map((item) => (
                   <div
                     key={item.id}
                     className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"

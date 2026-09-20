@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, date, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.emergency import EmergencyRequest
@@ -14,22 +15,53 @@ from app.schemas.tracker import (
     UpdateStatusRequest
 )
 from app.core.compatibility import mask_phone_number
+from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/tracker", tags=["Request Tracker"])
 
 @router.get("/all", response_model=TrackerResponse)
 def get_all_request_statuses(
     status_filter: Optional[str] = Query(None, description="Optional status filter: 'Pending', 'Accepted', 'Fulfilled'"),
+    scope: Optional[str] = Query(None, description="Optional scope filter: 'my' or 'all'"),
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Returns a unified ledger of all donor and acceptor requests across the network,
-    including who requested, which donor accepted, current status, and timestamps.
+    Returns the request ledger.
+    By default, authenticated users only see their own requests (created by them or where they are the donor).
     """
     items: list[RequestTrackerItem] = []
 
-    # 1. Process all Emergency SOS Broadcasts
-    emergencies = db.query(EmergencyRequest).order_by(EmergencyRequest.created_at.desc()).all()
+    # Decide whether to filter strictly by current_user:
+    is_valid_user = current_user is not None and isinstance(current_user, User) and hasattr(current_user, "id")
+    is_admin = is_valid_user and getattr(current_user, "role", "") == "admin"
+    
+    if is_valid_user:
+        filter_user_only = not (is_admin and scope == "all")
+    else:
+        # If explicitly requesting 'my' without being logged in, return empty
+        if scope == "my":
+            summary = TrackerSummary(total=0, accepted=0, pending=0, fulfilled=0)
+            return TrackerResponse(summary=summary, requests=[])
+        # Direct function call / testing fallback
+        filter_user_only = False
+
+    # 1. Process Emergency SOS Broadcasts
+    if filter_user_only and is_valid_user:
+        user_id = current_user.id
+        user_phone_clean = "".join(c for c in (current_user.phone_number or "") if c.isdigit())
+        emergency_filters = [
+            EmergencyRequest.user_id == user_id,
+            EmergencyRequest.donations.any(DonationLog.donor_id == user_id)
+        ]
+        if user_phone_clean and len(user_phone_clean) >= 7:
+            emergency_filters.append(EmergencyRequest.contact_phone.ilike(f"%{user_phone_clean[-10:]}%"))
+
+        emergencies = db.query(EmergencyRequest).filter(
+            or_(*emergency_filters)
+        ).order_by(EmergencyRequest.created_at.desc()).all()
+    else:
+        emergencies = db.query(EmergencyRequest).order_by(EmergencyRequest.created_at.desc()).all()
 
     for req in emergencies:
         # Find if a donor accepted or completed this request
@@ -102,7 +134,22 @@ def get_all_request_statuses(
         items.append(item)
 
     # 2. Process Direct Donor Requests (DonationLog with no request_id)
-    direct_logs = db.query(DonationLog).filter(DonationLog.request_id == None).order_by(DonationLog.timestamp.desc()).all()
+    if filter_user_only and is_valid_user:
+        user_id = current_user.id
+        user_phone_clean = "".join(c for c in (current_user.phone_number or "") if c.isdigit())
+        direct_filters = [
+            DonationLog.donor_id == user_id,
+            DonationLog.requester_id == user_id
+        ]
+        if user_phone_clean and len(user_phone_clean) >= 7:
+            direct_filters.append(DonationLog.notes.ilike(f"%{user_phone_clean[-10:]}%"))
+
+        direct_logs = db.query(DonationLog).filter(
+            DonationLog.request_id == None,
+            or_(*direct_filters)
+        ).order_by(DonationLog.timestamp.desc()).all()
+    else:
+        direct_logs = db.query(DonationLog).filter(DonationLog.request_id == None).order_by(DonationLog.timestamp.desc()).all()
 
     for log in direct_logs:
         donor = log.donor

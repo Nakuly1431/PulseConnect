@@ -267,10 +267,13 @@ export const api = {
     }
   },
 
-  // Fetch Request & Mission Tracker
-  async fetchTrackerRequests(statusFilter = 'All') {
+  // Fetch Request & Mission Tracker (defaults to user's own requests/missions)
+  async fetchTrackerRequests(statusFilter = 'All', scope = 'my') {
     try {
-      const params = statusFilter && statusFilter !== 'All' ? { status_filter: statusFilter } : {};
+      const params = { scope };
+      if (statusFilter && statusFilter !== 'All') {
+        params.status_filter = statusFilter;
+      }
       const response = await apiClient.get('/tracker/all', { params });
       return { data: response.data, isLive: true };
     } catch (error) {
@@ -279,11 +282,20 @@ export const api = {
         console.error('API error fetching tracker:', error.response.status, error.response.data);
         throw error;
       }
-      console.warn('Backend unreachable, using offline fallback for tracker data:', error.message);
       return {
-        data: MOCK_TRACKER_DATA,
+        data: { summary: { total: 0, accepted: 0, pending: 0, fulfilled: 0 }, requests: [] },
         isLive: false
       };
+    }
+  },
+
+  // Fetch Current User's Personal Donation Missions
+  async fetchMyDonationHistory() {
+    try {
+      const response = await apiClient.get('/donors/my-history');
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: [], isLive: false };
     }
   },
 

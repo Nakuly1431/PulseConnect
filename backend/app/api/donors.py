@@ -124,6 +124,7 @@ def toggle_availability(
 def request_blood_from_donor(
     donor_id: int,
     req_data: Optional[DonationRequestCreate] = None,
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -168,6 +169,7 @@ def request_blood_from_donor(
 
     new_log = DonationLog(
         donor_id=donor.id,
+        requester_id=current_user.id if current_user else None,
         request_id=req_data.request_id if req_data else None,
         status="Requested",
         notes=summary_notes[:495]
@@ -202,3 +204,43 @@ def request_blood_from_donor(
         donor_blood_group=donor.blood_group,
         hospital_name=hospital_name or donor.locality
     )
+
+@router.get("/my-history")
+def get_my_donation_history(
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns only the authenticated user's personal donation missions and responses.
+    """
+    if not current_user:
+        return []
+
+    logs = db.query(DonationLog).filter(
+        DonationLog.donor_id == current_user.id
+    ).order_by(DonationLog.timestamp.desc()).all()
+
+    history = []
+    for log in logs:
+        hospital_name = "Locality Proximity Match"
+        patient_name = "Emergency Patient"
+        component_type = "Whole Blood Unit"
+
+        if log.request:
+            hospital_name = log.request.hospital_name
+            patient_name = log.request.patient_name
+            component_type = f"{log.request.units_needed} Unit(s) {log.request.component_type} ({log.request.blood_group})"
+        elif log.notes:
+            patient_name = "Direct Match Patient"
+            hospital_name = current_user.locality or "Local Medical Center"
+
+        history.append({
+            "id": log.id,
+            "date": log.timestamp.strftime("%Y-%m-%d") if log.timestamp else "Recent",
+            "hospital": hospital_name,
+            "patient": patient_name,
+            "type": component_type,
+            "status": "Completed & Verified" if log.status in ["Completed", "Fulfilled"] else log.status,
+            "impact": "Life safeguarded" if log.status in ["Completed", "Fulfilled"] else "Dispatch Handshake"
+        })
+    return history

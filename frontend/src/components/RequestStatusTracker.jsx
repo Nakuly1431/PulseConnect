@@ -22,8 +22,10 @@ import {
 } from 'lucide-react';
 import { formatTimeAgo } from '../utils/bloodCompatibility';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, onOpenEditSOS }) {
+  const { user, isAuthenticated } = useAuth();
   const [data, setData] = useState({
     summary: { total: 0, accepted: 0, pending: 0, fulfilled: 0 },
     requests: []
@@ -31,6 +33,7 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [sourceFilter, setSourceFilter] = useState('All');
+  const [scope, setScope] = useState('my'); // 'my' for user's own requests, 'all' for admin
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(null);
   const [feedbackToast, setFeedbackToast] = useState(null);
@@ -48,7 +51,8 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
   const loadTrackerData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.fetchTrackerRequests(statusFilter);
+      const activeScope = (user?.role === 'admin' && scope === 'all') ? 'all' : 'my';
+      const res = await api.fetchTrackerRequests(statusFilter, activeScope);
       if (res && res.data) {
         setData({
           summary: res.data.summary || { total: 0, accepted: 0, pending: 0, fulfilled: 0 },
@@ -60,7 +64,7 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, scope, user?.role]);
 
   useEffect(() => {
     loadTrackerData();
@@ -133,17 +137,19 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50 mb-2">
             <Activity className="w-3.5 h-3.5 animate-pulse" />
-            <span>Mission Control & Request Ledger</span>
+            <span>{scope === 'all' && user?.role === 'admin' ? 'Network Request Ledger (Admin)' : 'My Requests & Mission History'}</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Live Request & Mission Status Tracker
+            {scope === 'all' && user?.role === 'admin' ? 'Network-Wide Mission Control' : 'My Personal Request & Mission Status'}
           </h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 font-medium mt-1">
-            Real-time verification of who requested blood, which donor accepted, and current dispatch milestones.
+            {scope === 'all' && user?.role === 'admin'
+              ? 'Real-time overview of all hospital SOS requests and donor dispatches across the platform.'
+              : 'Viewing only blood requests you created and emergency missions where you are the responding donor.'}
           </p>
         </div>
 
@@ -166,6 +172,42 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
           </button>
         </div>
       </div>
+
+      {/* Admin Scope Toggle (Only for Administrators) */}
+      {user?.role === 'admin' && (
+        <div className="flex items-center gap-2 mb-6 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit">
+          <button
+            onClick={() => setScope('my')}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              scope === 'my'
+                ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            My Requests & Missions
+          </button>
+          <button
+            onClick={() => setScope('all')}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              scope === 'all'
+                ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            All Network Requests (Admin Ledger)
+          </button>
+        </div>
+      )}
+
+      {/* Guest Notice if Not Signed In */}
+      {!isAuthenticated && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>You are viewing as guest. Please <strong>Sign In</strong> to track your personal blood requests and emergency missions.</span>
+          </div>
+        </div>
+      )}
 
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -320,22 +362,28 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
           <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto mb-4">
             <Filter className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white">No matching requests found</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+            {isAuthenticated ? 'No personal requests or missions found' : 'Sign in to view your request history'}
+          </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1 mb-6">
-            Try adjusting your status or search filters, or broadcast an urgent SOS emergency request.
+            {isAuthenticated
+              ? 'You have not submitted any emergency blood requests or responded to any donor dispatches yet. Only your own requests and assigned missions will appear in this tracker.'
+              : 'Sign in with your account to view the real-time status of your emergency blood requests and donor dispatches.'}
           </p>
-          <button
-            onClick={() => { setStatusFilter('All'); setSourceFilter('All'); setSearchQuery(''); }}
-            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all mr-2"
-          >
-            Reset Filters
-          </button>
-          <button
-            onClick={onOpenSOS}
-            className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 shadow-md shadow-red-600/20 transition-all"
-          >
-            Broadcast New SOS
-          </button>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => { setStatusFilter('All'); setSourceFilter('All'); setSearchQuery(''); }}
+              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+            >
+              Reset Filters
+            </button>
+            <button
+              onClick={onOpenSOS}
+              className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 shadow-md shadow-red-600/20 transition-all"
+            >
+              Broadcast New SOS
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
