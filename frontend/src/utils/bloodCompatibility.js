@@ -14,13 +14,15 @@ export const BLOOD_COMPATIBILITY_MAP = {
 
 export function getCompatibleDonorTypes(recipientGroup) {
   if (!recipientGroup || recipientGroup === 'All') return DONOR_BLOOD_GROUPS;
-  return BLOOD_COMPATIBILITY_MAP[recipientGroup] || [recipientGroup];
+  const normalized = recipientGroup.trim().toUpperCase().replace(/\s+/g, '+');
+  return BLOOD_COMPATIBILITY_MAP[normalized] || [normalized];
 }
 
 export function isBloodCompatible(donorGroup, recipientGroup) {
   if (!donorGroup || !recipientGroup || recipientGroup === 'All') return true;
+  const normDonor = donorGroup.trim().toUpperCase().replace(/\s+/g, '+');
   const compatibleTypes = getCompatibleDonorTypes(recipientGroup);
-  return compatibleTypes.includes(donorGroup);
+  return compatibleTypes.includes(normDonor);
 }
 
 export function formatDistance(km) {
@@ -77,6 +79,24 @@ export function getCooldownInfo(donor) {
   const lastDonationDate = donor.last_donation_date || null;
   const totalDonations = donor.total_donations || 0;
 
+  // 1. Prioritize authoritative backend fields if provided in UserResponse
+  if (donor.is_in_cooldown !== undefined && donor.cooldown_days_remaining !== undefined) {
+    const isInCooldown = Boolean(donor.is_in_cooldown);
+    const daysRemaining = Math.max(0, Number(donor.cooldown_days_remaining) || 0);
+    const elapsedDays = Math.max(0, 90 - daysRemaining);
+    const progressPercent = isInCooldown
+      ? Math.min(100, Math.max(0, Math.round((elapsedDays / 90) * 100)))
+      : 100;
+    return {
+      isInCooldown,
+      daysRemaining,
+      cooldownUntil: cooldownDateStr,
+      lastDonationDate,
+      progressPercent,
+      totalDonations
+    };
+  }
+
   if (!cooldownDateStr) {
     return {
       isInCooldown: false,
@@ -88,10 +108,17 @@ export function getCooldownInfo(donor) {
     };
   }
 
-  const cooldownDate = new Date(cooldownDateStr);
+  // 2. Parse ISO date (YYYY-MM-DD) as local calendar date to avoid UTC midnight shifts
+  let targetDay;
+  if (typeof cooldownDateStr === 'string' && cooldownDateStr.includes('-')) {
+    const [y, m, d] = cooldownDateStr.split('T')[0].split('-').map(Number);
+    targetDay = new Date(y, m - 1, d);
+  } else {
+    targetDay = new Date(cooldownDateStr);
+  }
+
   const now = new Date();
   const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const targetDay = new Date(cooldownDate.getFullYear(), cooldownDate.getMonth(), cooldownDate.getDate());
   const diffTime = targetDay.getTime() - nowDay.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 

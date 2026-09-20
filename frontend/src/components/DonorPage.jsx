@@ -61,7 +61,7 @@ export default function DonorPage({
   };
 
   return (
-    <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 animate-fadeIn">
+    <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 py-6 sm:py-8 space-y-8 animate-fadeIn">
       
       {/* Donor Portal Hero Header */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-700 via-rose-700 to-slate-900 text-white p-6 sm:p-10 shadow-xl border border-red-500/20">

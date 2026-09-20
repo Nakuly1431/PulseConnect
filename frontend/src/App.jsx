@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navbar from './components/Navbar';
 import EmergencyBanner from './components/EmergencyBanner';
 import AcceptorPage from './components/AcceptorPage';
@@ -10,6 +10,7 @@ import ProfileDrawer from './components/ProfileDrawer';
 import ProfilePage from './components/ProfilePage';
 import AdminPage from './components/AdminPage';
 import DonorVerificationModal from './components/DonorVerificationModal';
+import AnimatedBackground from './components/AnimatedBackground';
 import { api } from './services/api';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AlertCircle, CheckCircle2, Heart } from 'lucide-react';
@@ -26,7 +27,27 @@ export default function App() {
 function AppContent() {
   // Navigation View State: 'acceptor' | 'donor' | 'tracker' | 'login' | 'register'
   const [currentView, setCurrentView] = useState('acceptor');
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
+  const prevAuthRef = useRef(isAuthenticated);
+
+  // Automatically redirect to Sign In ('login') page whenever user logs out
+  useEffect(() => {
+    if (prevAuthRef.current && !isAuthenticated) {
+      setCurrentView('login');
+      addToast('Logged out successfully. Please sign in to continue.', 'info');
+    }
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore
+    }
+    setCurrentView('login');
+    addToast('Logged out successfully. Please sign in to continue.', 'info');
+  };
 
   // State
   const [donors, setDonors] = useState([]);
@@ -39,6 +60,8 @@ function AppContent() {
   const [selectedBloodGroup, setSelectedBloodGroup] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(true);
+  const [radiusKm, setRadiusKm] = useState(25); // default emergency search radius: 25 km
+  const [searchCenter, setSearchCenter] = useState({ lat: 20.2961, lng: 85.8245, name: 'Bhubaneswar' });
 
   // User / Donor State
   const [isAvailable, setIsAvailable] = useState(true);
@@ -46,6 +69,7 @@ function AppContent() {
 
   // Modals & Drawers
   const [isSOSModalOpen, setIsSOSModalOpen] = useState(false);
+  const [editingEmergency, setEditingEmergency] = useState(null);
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [pendingEmergencyForDonation, setPendingEmergencyForDonation] = useState(null);
@@ -69,7 +93,10 @@ function AppContent() {
       const { data: donorList, isLive } = await api.searchDonors({
         blood_group: selectedBloodGroup,
         only_available: onlyAvailable,
-        locality: searchQuery
+        locality: searchQuery,
+        radius_km: radiusKm,
+        lat: searchCenter?.lat,
+        lng: searchCenter?.lng
       });
       const safeDonors = Array.isArray(donorList) ? donorList : [];
       setDonors(safeDonors);
@@ -88,7 +115,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedBloodGroup, onlyAvailable, searchQuery, currentDonor]);
+  }, [selectedBloodGroup, onlyAvailable, searchQuery, radiusKm, searchCenter, currentDonor]);
 
   // Sync currentDonor with authenticated user
   useEffect(() => {
@@ -158,10 +185,48 @@ function AppContent() {
         `SOS Broadcast Activated! Matching ${newEmergency.blood_group} donors nearby.`,
         'success'
       );
+      // Persist to localStorage for immediate and subsequent edits
+      try {
+        const existing = JSON.parse(localStorage.getItem('pulseconnect_my_sos_requests') || '[]');
+        const updatedList = [newEmergency, ...existing.filter(e => e.id !== newEmergency.id)];
+        localStorage.setItem('pulseconnect_my_sos_requests', JSON.stringify(updatedList));
+      } catch (err) {
+        console.warn('LocalStorage save error:', err);
+      }
       setDismissedBanner(false);
       loadData();
-    } catch {
-      addToast('Failed to broadcast SOS. Please check details.', 'error');
+      return newEmergency;
+    } catch (err) {
+      addToast(err.message || 'Failed to broadcast SOS. Please check details.', 'error');
+      throw err;
+    }
+  };
+
+  // Handle SOS Edit Submit (for stressed filers correcting typos)
+  const handleSOSEditSubmit = async (requestId, updatedData, editToken) => {
+    try {
+      const payload = {
+        ...updatedData,
+        edit_token: editToken
+      };
+      const { data: updated } = await api.updateSOS(requestId, payload);
+      addToast(
+        `Emergency #${requestId} details corrected! Updated broadcast sent to matching donors.`,
+        'success'
+      );
+      // Update in localStorage
+      try {
+        const existing = JSON.parse(localStorage.getItem('pulseconnect_my_sos_requests') || '[]');
+        const updatedList = existing.map(e => (e.id === requestId ? { ...e, ...updated } : e));
+        localStorage.setItem('pulseconnect_my_sos_requests', JSON.stringify(updatedList));
+      } catch (err) {
+        console.warn('LocalStorage update error:', err);
+      }
+      loadData();
+      return updated;
+    } catch (err) {
+      addToast(err.message || 'Failed to update emergency.', 'error');
+      throw err;
     }
   };
 
@@ -207,7 +272,9 @@ function AppContent() {
   const topEmergency = !dismissedBanner && Array.isArray(emergencies) && emergencies.find(e => e?.urgency_level === 'Immediate');
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#090D16] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-red-500 selection:text-white transition-colors duration-200">
+    <div className="relative min-h-screen bg-[#F8FAFC] dark:bg-[#090D16] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-red-500 selection:text-white transition-colors duration-200 overflow-x-hidden">
+      {/* Dynamic Animated Medical Vitality Background */}
+      <AnimatedBackground />
       
       {/* Sticky Top Emergency Banner for Critical Cases */}
       {topEmergency && (
@@ -231,6 +298,7 @@ function AppContent() {
         activeSOSCount={emergencies.length}
         currentView={currentView}
         onNavigate={setCurrentView}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area with Bottom Clearance for Mobile App Bar */}
@@ -245,6 +313,10 @@ function AppContent() {
             onChangeSearchQuery={setSearchQuery}
             onlyAvailable={onlyAvailable}
             onToggleOnlyAvailable={setOnlyAvailable}
+            radiusKm={radiusKm}
+            onChangeRadiusKm={setRadiusKm}
+            searchCenter={searchCenter}
+            onChangeSearchCenter={setSearchCenter}
             onRequestBlood={handleRequestBlood}
             onOpenSOS={() => setIsSOSModalOpen(true)}
             onNavigateTracker={() => setCurrentView('tracker')}
@@ -261,7 +333,14 @@ function AppContent() {
             onToggleAvailability={handleToggleAvailability}
             currentDonor={currentDonor}
             onRespondToEmergency={handleRespondToEmergency}
-            onOpenProfile={() => setCurrentView('profile')}
+            onOpenProfile={() => {
+              if (isAuthenticated && user) {
+                setCurrentView('profile');
+              } else {
+                setCurrentView('login');
+                addToast('Please sign in to view your donor profile and card.', 'info');
+              }
+            }}
             onNavigateTracker={() => setCurrentView('tracker')}
             onNavigateAcceptor={() => setCurrentView('acceptor')}
           />
@@ -270,18 +349,36 @@ function AppContent() {
         {currentView === 'tracker' && (
           <RequestStatusTracker
             onNavigateDashboard={() => setCurrentView('acceptor')}
-            onOpenSOS={() => setIsSOSModalOpen(true)}
+            onOpenSOS={() => {
+              setEditingEmergency(null);
+              setIsSOSModalOpen(true);
+            }}
+            onOpenEditSOS={(emergency) => {
+              setEditingEmergency(emergency);
+              setIsSOSModalOpen(true);
+            }}
           />
         )}
 
         {currentView === 'profile' && (
-          <ProfilePage
-            onNavigateBack={() => setCurrentView('donor')}
-            onNavigateAuth={(tab) => setCurrentView(tab || 'login')}
-            isAvailable={isAvailable}
-            onToggleAvailability={handleToggleAvailability}
-            addToast={addToast}
-          />
+          isAuthenticated && user ? (
+            <ProfilePage
+              onNavigateBack={() => setCurrentView('donor')}
+              onNavigateAuth={(tab) => setCurrentView(tab || 'login')}
+              isAvailable={isAvailable}
+              onToggleAvailability={handleToggleAvailability}
+              addToast={addToast}
+            />
+          ) : (
+            <AuthPage
+              initialTab="login"
+              onNavigate={setCurrentView}
+              onSuccess={() => {
+                addToast('Signed in successfully!', 'success');
+                setCurrentView('profile');
+              }}
+            />
+          )
         )}
 
         {currentView === 'admin' && (
@@ -305,7 +402,7 @@ function AppContent() {
 
       {/* Footer with mobile bottom clearance */}
       <footer className="mt-8 sm:mt-16 bg-white dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800/80 pt-8 pb-24 md:pb-8 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+        <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-red-600 fill-red-600" />
             <span className="font-bold text-slate-700 dark:text-slate-200">PulseConnect Platform</span>
@@ -334,7 +431,14 @@ function AppContent() {
             </button>
             <span>•</span>
             <button
-              onClick={() => setCurrentView('profile')}
+              onClick={() => {
+                if (isAuthenticated && user) {
+                  setCurrentView('profile');
+                } else {
+                  setCurrentView('login');
+                  addToast('Please sign in to view your donor profile and card.', 'info');
+                }
+              }}
               className={`hover:text-red-600 dark:hover:text-red-400 transition-colors ${currentView === 'profile' ? 'font-bold text-red-600 dark:text-red-400' : ''}`}
             >
               User Profile
@@ -364,11 +468,22 @@ function AppContent() {
         </div>
       </footer>
 
-      {/* Modals & Drawers */}
+      {/* SOS Broadcast Modal */}
       <SOSModal
         isOpen={isSOSModalOpen}
-        onClose={() => setIsSOSModalOpen(false)}
+        onClose={() => {
+          setIsSOSModalOpen(false);
+          setEditingEmergency(null);
+        }}
         onSubmitSOS={handleSOSSubmit}
+        onUpdateSOS={handleSOSEditSubmit}
+        mode={editingEmergency ? 'edit' : 'create'}
+        initialData={editingEmergency}
+        onNavigateTracker={() => {
+          setIsSOSModalOpen(false);
+          setEditingEmergency(null);
+          setCurrentView('tracker');
+        }}
       />
 
       <ProfileDrawer

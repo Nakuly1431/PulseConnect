@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
@@ -7,6 +7,7 @@ class EmergencyRequest(Base):
     __tablename__ = "emergency_requests"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     patient_name = Column(String(120), nullable=False)
     blood_group = Column(String(5), index=True, nullable=False)
     units_needed = Column(Integer, default=1, nullable=False)
@@ -21,7 +22,9 @@ class EmergencyRequest(Base):
     verification_slip_path = Column(String(255), nullable=True)
     status = Column(String(30), default="Active", index=True, nullable=False)  # Active, Fulfilled, Expired
     posted_by_verified_hospital = Column(Boolean, default=False, nullable=False)
+    edit_token = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
+    creator = relationship("User", foreign_keys=[user_id])
     donations = relationship("DonationLog", back_populates="request", cascade="all, delete-orphan")

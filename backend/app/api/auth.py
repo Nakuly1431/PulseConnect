@@ -135,12 +135,12 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to update profile"
+        )
     user = current_user
-    if not user:
-        # Seamless developer fallback for testing when no session is active
-        user = db.query(User).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Not authenticated")
 
     if profile_in.full_name is not None:
         user.full_name = profile_in.full_name.strip()

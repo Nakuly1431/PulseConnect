@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, ShieldCheck, Heart, Clock, Award, Phone, Mail, MapPin, 
   Calendar, CheckCircle2, AlertCircle, Edit3, ArrowLeft, LogOut, 
@@ -63,29 +63,18 @@ export default function ProfilePage({
 }) {
   const { user, isAuthenticated, logout, updateUser } = useAuth();
 
-  // Active or Fallback Donor Data
-  const defaultDonor = {
-    id: 1084,
-    full_name: "Aarav Sharma",
-    email: "aarav.sharma@example.com",
-    phone_number: "+91 98765 43210",
-    blood_group: "O+",
-    locality: "Indiranagar, 100 Feet Rd",
-    city: "Bengaluru",
-    state: "Karnataka",
-    latitude: 12.9716,
-    longitude: 77.5946,
-    is_available: true,
-    is_verified: true,
-    total_donations: 8,
-    cooldown_until: null,
-    cooldown_days_remaining: 0,
-    is_in_cooldown: false,
-    last_donation_date: "2026-06-15",
-    created_at: "2025-01-10T10:30:00Z"
-  };
+  // Route unregistered / unauthenticated users to Sign In immediately
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      onNavigateAuth?.('login');
+    }
+  }, [isAuthenticated, user, onNavigateAuth]);
 
-  const donor = user || defaultDonor;
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  const donor = user;
   const currentBloodGroup = donor.blood_group || 'O+';
   const compatibility = BLOOD_COMPATIBILITY[currentBloodGroup] || BLOOD_COMPATIBILITY['O+'];
 
@@ -246,7 +235,8 @@ export default function ProfilePage({
             <button
               onClick={async () => {
                 await logout();
-                addToast?.('Logged out successfully', 'info');
+                onNavigateAuth?.('login');
+                addToast?.('Logged out successfully. Please sign in to continue.', 'info');
               }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-red-200 dark:border-red-900/50 transition-colors"
             >

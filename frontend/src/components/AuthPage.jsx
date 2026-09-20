@@ -33,6 +33,13 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [isReadOnly, setIsReadOnly] = useState(true);
+
+  const handleInputInteraction = () => {
+    if (isReadOnly) {
+      setIsReadOnly(false);
+    }
+  };
 
   // Register Form State - Pan-India by default
   const [selectedState, setSelectedState] = useState('Karnataka');
@@ -71,6 +78,8 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       setIsSubmitting(false);
     }
   };
+
+
 
   // Handle State Dropdown Change
   const handleStateChange = (stateName) => {
@@ -194,6 +203,7 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
               onClick={() => {
                 setActiveTab('login');
                 setErrorMessage('');
+                setIsReadOnly(true);
               }}
               className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${activeTab === 'login'
                 ? 'bg-red-600 text-white shadow-md'
@@ -206,6 +216,7 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
               onClick={() => {
                 setActiveTab('register');
                 setErrorMessage('');
+                setIsReadOnly(false);
               }}
               className={`flex-1 py-2 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${activeTab === 'register'
                 ? 'bg-red-600 text-white shadow-md'
@@ -231,14 +242,23 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
         {activeTab === 'login' && (
           <form onSubmit={handleLoginSubmit} className="p-6 sm:p-8 space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
-                Email Address
+              <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                Email Address / Registered ID
               </label>
+
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                 <input
                   type="email"
+                  name="email"
+                  id="login-email"
                   required
+                  autoComplete="username"
+                  readOnly={isReadOnly}
+                  onFocus={handleInputInteraction}
+                  onClick={handleInputInteraction}
+                  onMouseDown={handleInputInteraction}
+                  onTouchStart={handleInputInteraction}
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="name@pulseconnect.org"
@@ -249,16 +269,24 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <label htmlFor="login-password" className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Password
                 </label>
                 <span className="text-xs text-slate-400 dark:text-slate-500">Encrypted with Bcrypt</span>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  id="login-password"
                   required
+                  autoComplete="current-password"
+                  readOnly={isReadOnly}
+                  onFocus={handleInputInteraction}
+                  onClick={handleInputInteraction}
+                  onMouseDown={handleInputInteraction}
+                  onTouchStart={handleInputInteraction}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"

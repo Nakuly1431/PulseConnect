@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, Radio, Heart, User, Search, ShieldCheck, LogIn, Clock, Bell, CheckCheck, ExternalLink } from 'lucide-react';
+import { Activity, Radio, Heart, User, Search, ShieldCheck, LogIn, LogOut, Clock, Bell, CheckCheck, ExternalLink } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -14,7 +14,8 @@ export default function Navbar({
   cooldownDaysRemaining = 0,
   activeSOSCount = 0,
   currentView = 'acceptor',
-  onNavigate
+  onNavigate,
+  onLogout
 }) {
   const { user, isAuthenticated } = useAuth();
 
@@ -82,17 +83,17 @@ export default function Navbar({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors relative">
+        <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12">
           <div className="flex items-center justify-between h-16 sm:h-20">
             
             {/* Brand Logo & Tagline */}
             <div 
               onClick={() => onNavigate && onNavigate('acceptor')}
-              className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none"
+              className="flex items-center gap-2 sm:gap-3 cursor-pointer select-none group"
             >
-              <div className="relative flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 shadow-md sm:shadow-lg shadow-red-500/25 shrink-0">
-                <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white animate-pulse" />
+              <div className="relative flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 shadow-md sm:shadow-lg shadow-red-500/25 shrink-0 group-hover:scale-105 transition-transform">
+                <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white heartbeat-icon" />
                 <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 bg-emerald-500 border-2 border-white"></span>
@@ -194,8 +195,8 @@ export default function Navbar({
                   title={`Biological Cooldown Active: ${cooldownDaysRemaining} days remaining. You cannot switch On-Duty until recovery completes.`}
                 >
                   <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="hidden lg:inline">In Cooldown ({cooldownDaysRemaining}d)</span>
-                  <span className="lg:hidden">Cooldown ({cooldownDaysRemaining}d)</span>
+                  <span className="hidden lg:inline">Frozen ({cooldownDaysRemaining}d)</span>
+                  <span className="lg:hidden">Freeze ({cooldownDaysRemaining}d)</span>
                 </button>
               ) : (
                 <button
@@ -328,13 +329,15 @@ export default function Navbar({
               <button
                 id="sos-trigger-btn"
                 onClick={onOpenSOS}
-                className="relative flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all duration-150 shadow-md sm:shadow-lg shadow-red-600/30 pulse-glow-red"
+                className="relative flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all duration-150 shadow-md sm:shadow-lg shadow-red-600/30 pulse-glow-red overflow-visible"
                 title="Emergency SOS Blood Request"
               >
-                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-white" />
-                <span>SOS</span>
+                <span className="radar-ring" />
+                <span className="radar-ring radar-ring-delayed" />
+                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-white relative z-10" />
+                <span className="relative z-10">SOS</span>
                 {activeSOSCount > 0 && (
-                  <span className="flex items-center justify-center w-3.5 h-3.5 sm:w-4 sm:h-4 text-[9px] sm:text-[10px] bg-white text-red-600 font-extrabold rounded-full shadow">
+                  <span className="relative z-10 flex items-center justify-center w-3.5 h-3.5 sm:w-4 sm:h-4 text-[9px] sm:text-[10px] bg-white text-red-600 font-extrabold rounded-full shadow">
                     {activeSOSCount}
                   </span>
                 )}
@@ -342,23 +345,35 @@ export default function Navbar({
 
               {/* Profile or Sign In Button */}
               {isAuthenticated ? (
-                <button
-                  id="nav-profile-btn"
-                  onClick={onOpenProfile}
-                  className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 rounded-xl border transition-all ${
-                    currentView === 'profile'
-                      ? 'bg-red-50 dark:bg-red-950/60 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 font-bold shadow-sm'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                  title="Donor Profile & Dossier"
-                >
-                  <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-black shrink-0">
-                    {user?.blood_group || user?.full_name?.charAt(0) || <User className="w-3.5 h-3.5" />}
-                  </div>
-                  <span className="hidden sm:inline text-xs font-bold truncate max-w-[100px]">
-                    {user?.full_name?.split(' ')[0] || 'Profile'}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  <button
+                    id="nav-profile-btn"
+                    onClick={onOpenProfile}
+                    className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-2 rounded-xl border transition-all ${
+                      currentView === 'profile'
+                        ? 'bg-red-50 dark:bg-red-950/60 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 font-bold shadow-sm'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    title="Donor Profile & Dossier"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-black shrink-0">
+                      {user?.blood_group || user?.full_name?.charAt(0) || <User className="w-3.5 h-3.5" />}
+                    </div>
+                    <span className="hidden sm:inline text-xs font-bold truncate max-w-[100px]">
+                      {user?.full_name?.split(' ')[0] || 'Profile'}
+                    </span>
+                  </button>
+
+                  <button
+                    id="nav-logout-btn"
+                    onClick={onLogout}
+                    className="flex items-center gap-1 p-1.5 sm:px-2 sm:py-2 rounded-xl border border-transparent hover:border-red-200 dark:hover:border-red-900/50 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                    title="Sign Out / Log Out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="hidden lg:inline text-xs font-bold">Logout</span>
+                  </button>
+                </div>
               ) : (
                 <button
                   id="nav-signin-btn"
@@ -372,6 +387,19 @@ export default function Navbar({
             </div>
 
           </div>
+        </div>
+
+        {/* Live ECG Cardiac Monitor Waveform along bottom edge of header */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2.5px] overflow-hidden pointer-events-none opacity-85">
+          <svg className="w-full h-5 absolute -bottom-1" preserveAspectRatio="none" viewBox="0 0 1200 20">
+            <path
+              d="M0,10 L280,10 L295,2 L305,18 L315,4 L325,14 L335,10 L580,10 L595,2 L605,18 L615,4 L625,14 L635,10 L880,10 L895,2 L905,18 L915,4 L925,14 L935,10 L1200,10"
+              fill="none"
+              stroke="#ef4444"
+              strokeWidth="2"
+              className="ecg-line"
+            />
+          </svg>
         </div>
       </header>
 

@@ -64,6 +64,15 @@ def verify_user(
         )
 
     user.is_verified = True
+    # If a hospital account is verified, synchronize all emergency requests associated with this hospital
+    if user.role == "hospital":
+        db.query(EmergencyRequest).filter(EmergencyRequest.user_id == user.id).update(
+            {"posted_by_verified_hospital": True}
+        )
+        if user.hospital_name:
+            db.query(EmergencyRequest).filter(
+                EmergencyRequest.hospital_name.ilike(user.hospital_name.strip())
+            ).update({"posted_by_verified_hospital": True})
     db.commit()
     db.refresh(user)
 
@@ -77,12 +86,25 @@ def get_all_requests(
 ):
     """
     Returns all emergency requests across the network, optionally filtered by status.
+    Ensures hospital verified flag dynamically reflects the creator's live account status.
     """
     query = db.query(EmergencyRequest)
     if status_filter and status_filter.strip().lower() != "all":
         query = query.filter(EmergencyRequest.status.ilike(status_filter.strip()))
 
     requests = query.order_by(EmergencyRequest.created_at.desc()).all()
+    for req in requests:
+        if req.user_id:
+            creator = db.query(User).filter(User.id == req.user_id).first()
+            if creator and creator.role == "hospital":
+                req.posted_by_verified_hospital = bool(creator.is_verified)
+        elif req.hospital_name:
+            hosp = db.query(User).filter(
+                User.role == "hospital",
+                User.hospital_name.ilike(req.hospital_name.strip())
+            ).first()
+            if hosp:
+                req.posted_by_verified_hospital = bool(hosp.is_verified)
     return requests
 
 @router.delete("/requests/{request_id}")

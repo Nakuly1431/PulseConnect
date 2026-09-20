@@ -25,6 +25,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.25s ease, color 0.25s ease;
+  overflow-x: hidden;
 }
 
 .dark body,
@@ -35,17 +36,221 @@ html.dark body {
 
 /* Custom Glassmorphism & Emergency Accents */
 .glass-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .glass-card {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .pulse-glow-red {
-  box-shadow: 0 0 20px -3px rgba(220, 38, 38, 0.45);
+  box-shadow: 0 0 24px -2px rgba(220, 38, 38, 0.5);
 }
 
 .pulse-glow-green {
-  box-shadow: 0 0 16px -3px rgba(22, 163, 74, 0.35);
+  box-shadow: 0 0 20px -2px rgba(22, 163, 74, 0.4);
+}
+
+/* =========================================
+   ANIMATION SUITE 1: Live ECG Cardiac Monitor Wave
+   ========================================= */
+@keyframes ecg-flow {
+  0% {
+    stroke-dashoffset: 600;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ecg-line {
+  stroke-dasharray: 600;
+  animation: ecg-flow 3.2s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.8));
+}
+
+.ecg-line-green {
+  stroke-dasharray: 600;
+  animation: ecg-flow 3.5s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.8));
+}
+
+/* =========================================
+   ANIMATION SUITE 2: Emergency Radar Sonar Beacon
+   ========================================= */
+@keyframes radar-ripple {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.radar-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 2px solid rgba(239, 68, 68, 0.6);
+  animation: radar-ripple 2.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.radar-ring-delayed {
+  animation-delay: 1.2s;
+}
+
+/* =========================================
+   ANIMATION SUITE 3: Floating Ambient Plasma Mesh
+   ========================================= */
+@keyframes float-slow {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -40px) scale(1.08);
+  }
+  66% {
+    transform: translate(-25px, 20px) scale(0.95);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-35px, 35px) scale(0.92);
+  }
+  66% {
+    transform: translate(25px, -20px) scale(1.06);
+  }
+}
+
+.ambient-plasma-1 {
+  animation: float-slow 18s ease-in-out infinite;
+  filter: blur(70px);
+}
+
+.ambient-plasma-2 {
+  animation: float-reverse 22s ease-in-out infinite;
+  filter: blur(80px);
+}
+
+/* =========================================
+   ANIMATION SUITE 4: Holographic Card Border Shimmer
+   ========================================= */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.card-shimmer {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-shimmer:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 32px -8px rgba(220, 38, 38, 0.12), 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.card-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(239, 68, 68, 0.2) 25%,
+    rgba(244, 63, 94, 0.6) 50%,
+    rgba(239, 68, 68, 0.2) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.card-shimmer:hover::after {
+  opacity: 1;
+  animation: shimmer-sweep 2s linear infinite;
+}
+
+/* =========================================
+   ANIMATION SUITE 5: Fluid Liquid Slosh Wave
+   ========================================= */
+@keyframes liquid-wave {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.liquid-wave-animation {
+  animation: liquid-wave 4s linear infinite;
+}
+
+/* Heartbeat Rhythm */
+@keyframes cardiac-beat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.18);
+  }
+  28% {
+    transform: scale(1.04);
+  }
+  42% {
+    transform: scale(1.22);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+.heartbeat-icon {
+  animation: cardiac-beat 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  transform-origin: center;
+}
+
+/* Breathing On-Duty Beacon Glow */
+@keyframes beacon-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+}
+
+.beacon-green {
+  animation: beacon-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Custom interactive range slider */
@@ -72,3 +277,119 @@ input[type="range"]::-webkit-slider-thumb:hover {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* =========================================
+   ANIMATION SUITE 6: Global Animated Medical Background
+   ========================================= */
+
+/* Dot matrix telemetry grid */
+.bg-dot-matrix {
+  background-image: radial-gradient(circle, rgba(239, 68, 68, 0.1) 1.2px, transparent 1.2px);
+  background-size: 36px 36px;
+}
+
+.dark .bg-dot-matrix {
+  background-image: radial-gradient(circle, rgba(248, 113, 113, 0.08) 1.2px, transparent 1.2px);
+  background-size: 36px 36px;
+}
+
+/* Light telemetry scanning beam */
+@keyframes telemetry-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+.telemetry-scan-beam {
+  animation: telemetry-scan 14s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Cellular vitality particle floating */
+@keyframes float-particle {
+  0% {
+    transform: translateY(110vh) translateX(0) scale(0.85);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(50vh) translateX(25px) scale(1.1);
+    opacity: 0.85;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(-20px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.cellular-particle {
+  animation: float-particle linear infinite;
+  will-change: transform, opacity;
+}
+
+/* Biological erythrocyte cell breathing rhythm */
+@keyframes cell-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px 1px rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 24px 4px rgba(244, 63, 94, 0.45);
+  }
+}
+
+.cell-pulse-glow {
+  animation: cell-pulse 4.5s ease-in-out infinite;
+}
+
+/* Slow plasma orb rotation */
+@keyframes orbit-slow {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.12);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.plasma-orb-glow {
+  animation: orbit-slow 35s linear infinite;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+/* Telemetry side HUD blink/ticker */
+@keyframes hud-blink {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.hud-ticker {
+  animation: hud-blink 3.5s ease-in-out infinite;
+}
+
+

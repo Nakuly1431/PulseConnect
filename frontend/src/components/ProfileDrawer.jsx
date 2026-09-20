@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, UserCheck, ShieldCheck, Heart, Clock, Award, CheckCircle, AlertTriangle, Calendar, LogOut, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,18 +11,16 @@ export default function ProfileDrawer({
   onOpenAuth
 }) {
   const { user, isAuthenticated, logout } = useAuth();
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && (!isAuthenticated || !user)) {
+      onClose();
+      if (onOpenAuth) onOpenAuth('login');
+    }
+  }, [isOpen, isAuthenticated, user, onClose, onOpenAuth]);
 
-  const currentDonor = user || donor || {
-    full_name: "Guest Visitor",
-    blood_group: "—",
-    phone_number: "—",
-    locality: "Not signed in",
-    is_verified: false,
-    total_donations: 0,
-    cooldown_until: null,
-    last_donation_date: null
-  };
+  if (!isOpen || !isAuthenticated || !user) return null;
+
+  const currentDonor = user;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/50 backdrop-blur-sm animate-fadeIn">
@@ -149,6 +147,7 @@ export default function ProfileDrawer({
               onClick={async () => {
                 await logout();
                 onClose();
+                if (onOpenAuth) onOpenAuth('login');
               }}
               className="w-full py-2.5 px-4 rounded-xl text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-950/70 transition-colors flex items-center justify-center gap-2"
             >

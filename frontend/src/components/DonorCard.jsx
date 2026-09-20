@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, CheckCircle2, ShieldCheck, Phone, Clock, Send, Check, AlertCircle } from 'lucide-react';
+import { MapPin, CheckCircle2, ShieldCheck, Phone, Clock, Send, Check, AlertCircle, Navigation } from 'lucide-react';
 
 export default function DonorCard({ donor, onRequestBlood }) {
   const [requestStatus, setRequestStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
@@ -23,9 +23,9 @@ export default function DonorCard({ donor, onRequestBlood }) {
   const isEligible = donor.is_available && !donor.is_in_cooldown;
 
   return (
-    <div className={`relative flex flex-col justify-between p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border transition-all duration-200 hover:shadow-lg ${
+    <div className={`relative flex flex-col justify-between p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border transition-all duration-300 card-shimmer ${
       isEligible 
-        ? 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700' 
+        ? 'border-slate-200 dark:border-slate-800 hover:border-red-400 dark:hover:border-red-500/50' 
         : 'border-slate-200/70 dark:border-slate-800/70 opacity-85 bg-slate-50/50 dark:bg-slate-900/50'
     }`}>
       
@@ -34,10 +34,10 @@ export default function DonorCard({ donor, onRequestBlood }) {
         <div className="flex items-start justify-between gap-3 mb-4">
           
           {/* Blood Group Badge */}
-          <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 text-white shadow-md shadow-red-500/20">
+          <div className="relative flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 text-white shadow-md shadow-red-500/20 group-hover:scale-105 transition-transform">
             <span className="text-xl font-black tracking-tight">{donor.blood_group}</span>
-            <div className="absolute -bottom-1 -right-1 flex h-3 w-3">
-              <span className={`rounded-full h-3 w-3 ${donor.is_available ? 'bg-emerald-500 ring-2 ring-white dark:ring-slate-900' : 'bg-slate-300 dark:bg-slate-600 ring-2 ring-white dark:ring-slate-900'}`} />
+            <div className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
+              <span className={`rounded-full h-3.5 w-3.5 ${donor.is_available ? 'bg-emerald-500 beacon-green ring-2 ring-white dark:ring-slate-900' : 'bg-slate-300 dark:bg-slate-600 ring-2 ring-white dark:ring-slate-900'}`} />
             </div>
           </div>
 
@@ -56,8 +56,8 @@ export default function DonorCard({ donor, onRequestBlood }) {
                 In 90-Day Cooldown
               </span>
             ) : donor.is_available ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 beacon-green" />
                 Ready to Donate
               </span>
             ) : (
@@ -71,9 +71,17 @@ export default function DonorCard({ donor, onRequestBlood }) {
 
         {/* Donor Name & Location */}
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-            {donor.full_name}
-          </h3>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
+              {donor.full_name}
+            </h3>
+            {donor.distance_km != null && (
+              <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200/80 dark:border-red-900/50 shadow-xs">
+                <Navigation className="w-3 h-3 text-red-500 fill-red-500/20" />
+                <span>{donor.distance_km < 1 ? `${Math.round(donor.distance_km * 1000)} m` : `${Number(donor.distance_km).toFixed(1)} km`}</span>
+              </span>
+            )}
+          </div>
           
           <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
             <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />

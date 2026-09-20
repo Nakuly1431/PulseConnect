@@ -32,9 +32,10 @@ export default function ActiveSOSBoard({ emergencies = [], onRespondToEmergency,
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <span>Urgent SOS Emergency Board</span>
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+            <span className="relative flex h-3 w-3 items-center justify-center">
+              <span className="radar-ring w-4 h-4 border-red-500" />
+              <span className="radar-ring-delayed w-6 h-6 border-red-500" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 shadow-md shadow-red-500" />
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
@@ -60,9 +61,9 @@ export default function ActiveSOSBoard({ emergencies = [], onRespondToEmergency,
           return (
             <div
               key={item.id}
-              className={`flex flex-col justify-between p-5 rounded-2xl bg-white border transition-all duration-200 hover:shadow-lg ${
+              className={`flex flex-col justify-between p-5 rounded-2xl bg-white border card-shimmer group relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
                 isImmediate
-                  ? 'border-red-300 shadow-sm shadow-red-500/10 ring-1 ring-red-500/10'
+                  ? 'border-red-400/80 shadow-md shadow-red-500/10 ring-1 ring-red-500/20'
                   : 'border-slate-200'
               }`}
             >

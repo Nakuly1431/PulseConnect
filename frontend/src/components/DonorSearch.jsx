@@ -1,16 +1,16 @@
-import React from 'react';
-import { Search, Info, MapPin, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Info, MapPin, X, Radar, Navigation, LocateFixed } from 'lucide-react';
 import { BLOOD_GROUPS, getCompatibleDonorTypes } from '../utils/bloodCompatibility';
 
 const POPULAR_SEARCH_CITIES = [
-  'Bengaluru',
-  'Delhi',
-  'Mumbai',
-  'Hyderabad',
-  'Chennai',
-  'Kolkata',
-  'Pune',
-  'Ahmedabad'
+  'Bhubaneswar',
+  'Khordha',
+  'Patia',
+  'Saheed Nagar',
+  'Nayapalli',
+  'Chandrasekharpur',
+  'Khandagiri',
+  'Jatni'
 ];
 
 export default function DonorSearch({
@@ -20,9 +20,47 @@ export default function DonorSearch({
   onChangeSearchQuery,
   onlyAvailable,
   onToggleOnlyAvailable,
+  radiusKm = 25,
+  onChangeRadiusKm,
+  searchCenter,
+  onChangeSearchCenter,
   totalMatchingDonors = 0
 }) {
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('');
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('GPS not supported');
+      setTimeout(() => setLocationStatus(''), 3000);
+      return;
+    }
+    setIsLocating(true);
+    setLocationStatus('Detecting GPS...');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        setLocationStatus('GPS Locked');
+        if (onChangeSearchCenter) {
+          onChangeSearchCenter({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            name: 'My GPS Location'
+          });
+        }
+        setTimeout(() => setLocationStatus(''), 3000);
+      },
+      (err) => {
+        setIsLocating(false);
+        setLocationStatus('GPS unavailable');
+        setTimeout(() => setLocationStatus(''), 3000);
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
   const compatibleTypes = getCompatibleDonorTypes(selectedBloodGroup);
+
 
   return (
     <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm mb-8 transition-colors">
@@ -95,7 +133,102 @@ export default function DonorSearch({
         )}
       </div>
 
-      {/* 2. City, State & Locality Search */}
+      {/* 2. Emergency Distance Radius Slider */}
+      <div className="pt-5 pb-5 border-t border-slate-100 dark:border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center font-bold shadow-sm">
+              <Radar className="w-4 h-4 text-red-600 dark:text-red-400 animate-spin" style={{ animationDuration: '6s' }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="radius-slider" className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Emergency Search Radius
+                </label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {searchCenter?.name || 'Bhubaneswar Hub'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                Adjust radar to discover verified nearby volunteer donors
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {/* GPS Button */}
+            <button
+              type="button"
+              onClick={handleGetLocation}
+              disabled={isLocating}
+              className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                searchCenter?.name === 'My GPS Location'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 shadow-sm'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+              }`}
+              title="Use your device GPS location"
+            >
+              <LocateFixed className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-red-500' : 'text-red-500'}`} />
+              <span>{locationStatus || (searchCenter?.name === 'My GPS Location' ? 'Using GPS' : 'Use My GPS')}</span>
+            </button>
+
+            {/* Current Range Badge */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30">
+              <Navigation className="w-3 h-3" />
+              <span>{radiusKm >= 100 ? 'All Distances (100+ km)' : `Within ${radiusKm} km`}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Range Slider */}
+        <div className="pt-2">
+          <div className="relative flex items-center">
+            <input
+              id="radius-slider"
+              type="range"
+              min="2"
+              max="100"
+              step="1"
+              value={radiusKm}
+              onChange={(e) => onChangeRadiusKm && onChangeRadiusKm(Number(e.target.value))}
+              className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600 dark:accent-red-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mt-1.5">
+            <span>2 km (Local)</span>
+            <span className="hidden sm:inline">15 km (City)</span>
+            <span className="hidden sm:inline">35 km (District)</span>
+            <span>100 km (All Region)</span>
+          </div>
+        </div>
+
+        {/* Quick Radius Preset Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+            Quick Radius:
+          </span>
+          {[5, 10, 25, 50, 100].map((preset) => {
+            const isSelected = radiusKm === preset || (preset === 100 && radiusKm >= 100);
+            return (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => onChangeRadiusKm && onChangeRadiusKm(preset)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  isSelected
+                    ? 'bg-red-600 text-white shadow-md shadow-red-600/20 scale-105'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {preset >= 100 ? 'All Region' : `${preset} km`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. City, State & Locality Search */}
       <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
           <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">

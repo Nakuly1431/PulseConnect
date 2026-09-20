@@ -65,6 +65,19 @@ def get_all_request_statuses(
         else:
             computed_status = "Pending"
 
+        is_verified_hosp = bool(req.posted_by_verified_hospital)
+        if req.user_id:
+            creator = req.creator or db.query(User).filter(User.id == req.user_id).first()
+            if creator and creator.role == "hospital":
+                is_verified_hosp = bool(creator.is_verified)
+        elif req.hospital_name:
+            hosp = db.query(User).filter(
+                User.role == "hospital",
+                User.hospital_name.ilike(req.hospital_name.strip())
+            ).first()
+            if hosp:
+                is_verified_hosp = bool(hosp.is_verified)
+
         item = RequestTrackerItem(
             id=f"sos-{req.id}",
             source_type="SOS Broadcast",
@@ -81,7 +94,7 @@ def get_all_request_statuses(
             contact_phone=req.contact_phone,
             verification_slip_path=req.verification_slip_path,
             assigned_donor=assigned_donor_info,
-            posted_by_verified_hospital=bool(req.posted_by_verified_hospital),
+            posted_by_verified_hospital=is_verified_hosp,
             created_at=req.created_at,
             accepted_at=accepted_at,
             notes=handshake_notes

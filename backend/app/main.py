@@ -50,6 +50,26 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE emergency_requests ADD COLUMN user_id INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE emergency_requests ADD COLUMN edit_token VARCHAR(64)"))
+            conn.commit()
+        except Exception:
+            pass
+
+    # Seed Odisha demo donors and hospital emergencies
+    db = SessionLocal()
+    try:
+        from app.db.seed import seed_database
+        seed_database(db)
+    except Exception as e:
+        print(f"Seeding notice: {e}")
+    finally:
+        db.close()
 
     yield
 

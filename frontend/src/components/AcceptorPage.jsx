@@ -29,6 +29,10 @@ export default function AcceptorPage({
   onChangeSearchQuery,
   onlyAvailable,
   onToggleOnlyAvailable,
+  radiusKm = 25,
+  onChangeRadiusKm,
+  searchCenter,
+  onChangeSearchCenter,
   onRequestBlood,
   onOpenSOS,
   onNavigateTracker,
@@ -41,11 +45,24 @@ export default function AcceptorPage({
   const compatibleTypes = BLOOD_COMPATIBILITY_MAP[recipientBloodGroup] || [recipientBloodGroup];
 
   return (
-    <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 animate-fadeIn">
-      
+    <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 py-6 sm:py-8 space-y-8 animate-fadeIn relative">
       {/* Acceptor Portal Hero Banner */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-red-950 text-white p-6 sm:p-10 shadow-xl border border-red-900/30">
         <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+        
+        {/* Animated ECG Cardiac Monitor Waveform Overlay */}
+        <div className="absolute -bottom-2 left-0 right-0 h-24 overflow-hidden pointer-events-none opacity-30">
+          <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1200 100">
+            <path
+              d="M0,50 L200,50 L220,10 L235,90 L250,20 L265,70 L280,50 L500,50 L520,10 L535,90 L550,20 L565,70 L580,50 L800,50 L820,10 L835,90 L850,20 L865,70 L880,50 L1200,50"
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="3"
+              className="ecg-line"
+            />
+          </svg>
+        </div>
+
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-400/30 text-red-300 text-xs font-bold uppercase tracking-wider mb-4">
@@ -69,10 +86,12 @@ export default function AcceptorPage({
               <button
                 id="acceptor-hero-sos-btn"
                 onClick={onOpenSOS}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-extrabold text-sm shadow-xl shadow-red-600/40 transition-all pulse-glow-red w-full sm:w-auto"
+                className="relative flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 active:scale-95 text-white font-extrabold text-sm shadow-xl shadow-red-600/40 transition-all pulse-glow-red w-full sm:w-auto overflow-visible group"
               >
-                <Radio className="w-4 h-4 animate-spin" />
-                <span>Broadcast Emergency SOS</span>
+                <span className="radar-ring" />
+                <span className="radar-ring radar-ring-delayed" />
+                <Radio className="w-4 h-4 animate-spin relative z-10" />
+                <span className="relative z-10">Emergency Blood Request</span>
               </button>
 
               <button
@@ -216,6 +235,10 @@ export default function AcceptorPage({
           onChangeSearchQuery={onChangeSearchQuery}
           onlyAvailable={onlyAvailable}
           onToggleOnlyAvailable={onToggleOnlyAvailable}
+          radiusKm={radiusKm}
+          onChangeRadiusKm={onChangeRadiusKm}
+          searchCenter={searchCenter}
+          onChangeSearchCenter={onChangeSearchCenter}
           totalMatchingDonors={donors.length}
         />
       </section>
@@ -223,7 +246,7 @@ export default function AcceptorPage({
       {/* Donors Results Grid */}
       <section aria-label="Available Blood Donors">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4, 5, 6].map(n => (
               <div key={n} className="h-64 rounded-2xl bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
             ))}
@@ -235,7 +258,7 @@ export default function AcceptorPage({
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Matching Donors Found</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-              Try selecting "All" blood groups or clearing the city search to find available donors across India.
+              Try increasing the search radius, selecting "All" blood groups, or clearing the city search to find available donors.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button
@@ -243,6 +266,7 @@ export default function AcceptorPage({
                   onSelectBloodGroup('All');
                   onChangeSearchQuery('');
                   onToggleOnlyAvailable(false);
+                  if (onChangeRadiusKm) onChangeRadiusKm(100);
                 }}
                 className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm transition-colors"
               >
@@ -257,7 +281,7 @@ export default function AcceptorPage({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-6">
             {donors.map(donor => (
               <DonorCard
                 key={donor.id}

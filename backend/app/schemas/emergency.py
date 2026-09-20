@@ -32,10 +32,34 @@ class EmergencyResponse(BaseModel):
     status: str
     posted_by_verified_hospital: bool = False
     distance_km: Optional[float] = None
+    edit_token: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class EmergencyUpdate(BaseModel):
+    edit_token: Optional[str] = None
+    patient_name: Optional[str] = None
+    blood_group: Optional[str] = None
+    units_needed: Optional[int] = Field(default=None, ge=1, le=20)
+    component_type: Optional[str] = None
+    hospital_name: Optional[str] = None
+    hospital_locality: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    urgency_level: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+class SOSSendOTPRequest(BaseModel):
+    phone_number: str
+
+class SOSSendOTPResponse(BaseModel):
+    status: str
+    message: str
+    phone_number: str
+    debug_otp: Optional[str] = None
 
 class EmergencyRespondRequest(BaseModel):
     donor_id: Optional[int] = None

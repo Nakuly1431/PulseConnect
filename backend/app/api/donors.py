@@ -11,7 +11,8 @@ from app.schemas.donation import DonationRequestCreate, DonationLogResponse
 from app.core.compatibility import (
     haversine_distance,
     get_compatible_donor_types,
-    mask_phone_number
+    mask_phone_number,
+    find_eligible_donors
 )
 from app.api.auth import get_current_user
 
@@ -29,55 +30,25 @@ def search_donors(
 ):
     """
     Medical compatibility and locality-based donor search.
-    Filters by blood group, locality/city/state text, and cooldown eligibility.
-    Coordinates and radius are completely optional.
+    Uses the unified shared find_eligible_donors matcher.
     """
     today = date.today()
-    # Normalize parameters if called directly in code/tests without FastAPI DI
     bg_str = blood_group if isinstance(blood_group, str) else "All"
     loc_str = locality if isinstance(locality, str) else None
     avail_bool = only_available if isinstance(only_available, bool) else True
 
-    query = db.query(User)
-
-    if avail_bool:
-        query = query.filter(User.is_available == True)
-
-    # Filter out donors who are actively in 90-day cooldown
-    query = query.filter(
-        (User.cooldown_until == None) | (User.cooldown_until <= today)
+    eligible_matches = find_eligible_donors(
+        db=db,
+        recipient_blood_group=bg_str,
+        lat=lat,
+        lng=lng,
+        radius_km=radius_km,
+        only_available=avail_bool,
+        locality=loc_str
     )
 
-    # Blood group compatibility filter
-    if bg_str and bg_str.strip().upper() != "ALL":
-        target_group = bg_str.strip().upper().replace(" ", "+")
-        # Find all donor types compatible for this recipient group
-        compatible_donor_types = get_compatible_donor_types(target_group)
-        query = query.filter(User.blood_group.in_(compatible_donor_types))
-
-    if loc_str and loc_str.strip():
-        search_str = f"%{loc_str.strip()}%"
-        query = query.filter(
-            or_(
-                User.locality.ilike(search_str),
-                User.city.ilike(search_str),
-                User.state.ilike(search_str)
-            )
-        )
-
-    donors = query.all()
-
-    # Process donors
     results = []
-    has_coords = isinstance(lat, (int, float)) and isinstance(lng, (int, float)) and lat != 0.0 and lng != 0.0
-
-    for donor in donors:
-        dist = None
-        if has_coords and donor.latitude and donor.longitude:
-            dist = haversine_distance(lat, lng, donor.latitude, donor.longitude)
-            if radius_km and dist > radius_km:
-                continue
-
+    for donor, dist in eligible_matches:
         is_cooldown = bool(donor.cooldown_until and donor.cooldown_until > today)
         cooldown_days = (donor.cooldown_until - today).days if is_cooldown else 0
         user_dict = {
@@ -102,11 +73,9 @@ def search_donors(
             "is_in_cooldown": is_cooldown,
             "created_at": donor.created_at
         }
-        results.append((dist if dist is not None else 9999.0, user_dict))
+        results.append(user_dict)
 
-    if has_coords:
-        results.sort(key=lambda x: x[0])
-    return [r[1] for r in results]
+    return results
 
 @router.patch("/toggle-availability", response_model=UserResponse)
 def toggle_availability(
@@ -116,15 +85,14 @@ def toggle_availability(
 ):
     """
     Flip donor availability status between Active/Ready and Off-duty.
-    If authenticated, updates the logged-in user. If no auth provided in dev,
-    toggles the first seeded donor for effortless UI demoing.
+    Requires authentication.
     """
     user = current_user
     if not user:
-        # Fallback to first donor in DB to make demo frictionless
-        user = db.query(User).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="No donor found to toggle")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to toggle availability"
+        )
 
     today = date.today()
     target_available = toggle_in.is_available if (toggle_in and toggle_in.is_available is not None) else (not user.is_available)

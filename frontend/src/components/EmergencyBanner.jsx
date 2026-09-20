@@ -8,14 +8,20 @@ export default function EmergencyBanner({ emergency, onRespond, onDismiss, curre
   const isCompatible = isBloodCompatible(currentDonor?.blood_group, emergency.blood_group);
 
   return (
-    <div className="relative bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-md border-b border-red-800 animate-fadeIn">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3">
+    <div className="relative bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white shadow-md border-b border-red-800/80 animate-fadeIn overflow-hidden">
+      {/* Animated subtle ECG line traversing along bottom edge */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] overflow-hidden opacity-75 pointer-events-none">
+        <div className="ecg-line w-full h-full bg-gradient-to-r from-transparent via-amber-300 to-transparent shadow-[0_0_8px_#fde047]" />
+      </div>
+
+      <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 py-2.5 sm:py-3 relative z-10">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
 
           {/* Emergency Details */}
           <div className="flex items-center gap-3">
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md shrink-0">
-              <ShieldAlert className="w-5 h-5 text-white animate-bounce" />
+            <span className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md shrink-0">
+              <span className="beacon-green w-7 h-7 bg-red-400 opacity-60 pointer-events-none" />
+              <ShieldAlert className="w-5 h-5 text-white animate-bounce relative z-10" />
             </span>
             <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-medium">
               <span className="px-2 py-0.5 rounded-md bg-white text-red-700 font-extrabold text-xs uppercase tracking-wide">

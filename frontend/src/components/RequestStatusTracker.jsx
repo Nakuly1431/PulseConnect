@@ -17,12 +17,13 @@ import {
   Heart,
   ArrowRight,
   ExternalLink,
-  Check
+  Check,
+  Edit3
 } from 'lucide-react';
 import { formatTimeAgo } from '../utils/bloodCompatibility';
 import { api } from '../services/api';
 
-export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS }) {
+export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, onOpenEditSOS }) {
   const [data, setData] = useState({
     summary: { total: 0, accepted: 0, pending: 0, fulfilled: 0 },
     requests: []
@@ -33,6 +34,15 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
   const [searchQuery, setSearchQuery] = useState('');
   const [isUpdating, setIsUpdating] = useState(null);
   const [feedbackToast, setFeedbackToast] = useState(null);
+
+  // My created SOS emergencies for authorization to edit mistakes
+  const myCreatedSOS = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('pulseconnect_my_sos_requests') || '[]');
+    } catch {
+      return [];
+    }
+  }, [data]);
 
   // Load tracker data
   const loadTrackerData = React.useCallback(async () => {
@@ -111,7 +121,7 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
   }, [data.requests, statusFilter, sourceFilter, searchQuery]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn transition-colors">
+    <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 py-8 animate-fadeIn transition-colors">
 
       {/* Toast Notification */}
       {feedbackToast && (
@@ -332,6 +342,10 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
           {filteredRequests.map((req) => {
             const isAccepted = req.status === 'Accepted';
             const isPending = req.status === 'Pending';
+            const matchingMySOS = req.source_type.includes('SOS')
+              ? myCreatedSOS.find(item => item.id === req.raw_id || String(item.id) === String(req.raw_id))
+              : null;
+            const canEdit = Boolean(matchingMySOS && req.status.toLowerCase() !== 'fulfilled');
 
             return (
               <div
@@ -369,6 +383,16 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
                       >
                         <ShieldCheck className="w-3 h-3" />
                         <span>Hospital Verified</span>
+                      </span>
+                    )}
+
+                    {matchingMySOS && (
+                      <span 
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                        title="SOS created from this browser"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                        <span>My Broadcast</span>
                       </span>
                     )}
                   </div>
@@ -514,6 +538,30 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS })
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>{isUpdating === req.id ? 'Updating...' : 'Mark as Fulfilled & Delivered'}</span>
+                      </button>
+                    )}
+
+                    {/* Edit Mistake Button for Stressed Filers */}
+                    {canEdit && (
+                      <button
+                        onClick={() => onOpenEditSOS && onOpenEditSOS({
+                          id: req.raw_id,
+                          patient_name: req.patient_name,
+                          blood_group: req.blood_group,
+                          units_needed: req.units_needed,
+                          component_type: req.component_type,
+                          urgency_level: req.urgency_level,
+                          hospital_name: req.hospital_name,
+                          hospital_locality: req.hospital_locality,
+                          contact_person: req.contact_person,
+                          contact_phone: req.contact_phone,
+                          edit_token: matchingMySOS.edit_token
+                        })}
+                        className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm shadow-amber-500/20 transition-all"
+                        title="Filing mistake under pressure? Click to correct details"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Details</span>
                       </button>
                     )}
 

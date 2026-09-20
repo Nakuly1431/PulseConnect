@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MOCK_STATS, MOCK_TRACKER_DATA } from './mockData';
+import { MOCK_DONORS, MOCK_EMERGENCIES, MOCK_STATS, MOCK_TRACKER_DATA } from './mockData';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -26,6 +26,61 @@ const formatErrorDetail = (detail) => {
   }
   return JSON.stringify(detail);
 };
+
+const haversineDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+};
+
+const filterDonors = (list, params = {}) => {
+  let res = [...list];
+  const centerLat = params.lat || 20.2961;
+  const centerLng = params.lng || 85.8245;
+
+  // Calculate distance for each donor
+  res = res.map(d => {
+    const dist = d.distance_km != null 
+      ? d.distance_km 
+      : haversineDistance(centerLat, centerLng, d.latitude, d.longitude);
+    return { ...d, distance_km: dist };
+  });
+
+  if (params.blood_group && params.blood_group !== 'All') {
+    res = res.filter(d => d.blood_group === params.blood_group);
+  }
+  if (params.only_available) {
+    res = res.filter(d => d.is_available);
+  }
+  if (params.locality && params.locality.trim()) {
+    const q = params.locality.toLowerCase().trim();
+    res = res.filter(d => 
+      (d.locality && d.locality.toLowerCase().includes(q)) ||
+      (d.city && d.city.toLowerCase().includes(q)) ||
+      (d.state && d.state.toLowerCase().includes(q)) ||
+      (d.full_name && d.full_name.toLowerCase().includes(q))
+    );
+  }
+  if (params.radius_km && Number(params.radius_km) < 100) {
+    res = res.filter(d => d.distance_km == null || d.distance_km <= Number(params.radius_km));
+  }
+
+  // Sort by nearest distance
+  res.sort((a, b) => {
+    if (a.distance_km == null) return 1;
+    if (b.distance_km == null) return -1;
+    return a.distance_km - b.distance_km;
+  });
+
+  return res;
+};
+
 
 export const api = {
   // Authentication: Login
@@ -102,12 +157,20 @@ export const api = {
 
   // Search Donors
   async searchDonors(params = {}) {
+    const cleanParams = { ...params };
+    if (cleanParams.radius_km >= 100) {
+      delete cleanParams.radius_km;
+    }
     try {
-      const response = await apiClient.get('/donors/search', { params });
-      return { data: response.data, isLive: true };
+      const response = await apiClient.get('/donors/search', { params: cleanParams });
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        return { data: response.data, isLive: true };
+      }
+      // If server is live but has 0 donors in DB, fallback to demo Odisha donors
+      return { data: filterDonors(MOCK_DONORS, params), isLive: true };
     } catch (error) {
-      console.warn('Donor search request error:', error.message);
-      return { data: [], isLive: false };
+      console.warn('Donor search request error, using demo Odisha donors:', error.message);
+      return { data: filterDonors(MOCK_DONORS, params), isLive: false };
     }
   },
 
@@ -130,6 +193,12 @@ export const api = {
     return { data: response.data, isLive: true };
   },
 
+  // Send SOS OTP verification
+  async sendSOSOtp(phoneNumber) {
+    const response = await apiClient.post('/sos/send-otp', { phone_number: phoneNumber });
+    return { data: response.data, isLive: true };
+  },
+
   // Create SOS Emergency
   async createSOS(formData) {
     const response = await apiClient.post('/sos/create', formData, {
@@ -138,14 +207,23 @@ export const api = {
     return { data: response.data, isLive: true };
   },
 
+  // Update SOS Emergency (for correcting filings under stress)
+  async updateSOS(requestId, updateData) {
+    const response = await apiClient.put(`/sos/${requestId}`, updateData);
+    return { data: response.data, isLive: true };
+  },
+
   // Fetch Active SOS
   async fetchActiveSOS(params = {}) {
     try {
       const response = await apiClient.get('/sos/active', { params });
-      return { data: response.data, isLive: true };
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        return { data: response.data, isLive: true };
+      }
+      return { data: MOCK_EMERGENCIES, isLive: true };
     } catch (error) {
-      console.warn('Fetch active SOS error:', error.message);
-      return { data: [], isLive: false };
+      console.warn('Fetch active SOS error, using demo Odisha emergencies:', error.message);
+      return { data: MOCK_EMERGENCIES, isLive: false };
     }
   },
 
@@ -160,7 +238,13 @@ export const api = {
     try {
       const response = await apiClient.get('/stats');
       return { data: response.data, isLive: true };
-    } catch {
+    } catch (error) {
+      if (error.response) {
+        // Real HTTP error from reachable backend - do not silently substitute mock data
+        console.error('API error fetching stats:', error.response.status, error.response.data);
+        throw error;
+      }
+      // Offline fallback only when backend is completely unreachable
       return { data: MOCK_STATS, isLive: false };
     }
   },
@@ -172,7 +256,12 @@ export const api = {
       const response = await apiClient.get('/tracker/all', { params });
       return { data: response.data, isLive: true };
     } catch (error) {
-      console.warn('Fetch tracker error:', error.message);
+      if (error.response) {
+        // Real HTTP error from reachable backend - do not silently substitute mock data
+        console.error('API error fetching tracker:', error.response.status, error.response.data);
+        throw error;
+      }
+      console.warn('Backend unreachable, using offline fallback for tracker data:', error.message);
       return {
         data: MOCK_TRACKER_DATA,
         isLive: false
