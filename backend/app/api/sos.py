@@ -27,6 +27,7 @@ from app.core.compatibility import (
 )
 from app.models.notification import Notification
 from app.api.auth import get_current_user
+from app.services.sms import send_realtime_sms_otp
 
 logger = logging.getLogger("pulseconnect.notifications")
 
@@ -89,11 +90,19 @@ def send_sos_otp(payload: SOSSendOTPRequest):
         "expires_at": time.time() + OTP_TTL_SECONDS
     }
 
-    logger.info(f"[SMS OTP SERVICE] Emergency SOS Verification Code for {cleaned_phone}: {otp}")
+    # Dispatch via Real-Time SMS Gateway (Fast2SMS / Twilio / Simulator)
+    sms_res = send_realtime_sms_otp(cleaned_phone, otp)
+    logger.info(f"[SMS OTP SERVICE] Emergency SOS Verification Code for {cleaned_phone}: {otp} (Provider: {sms_res.get('provider')})")
     
+    provider_msg = f"Verification code sent to {cleaned_phone}"
+    if sms_res.get("provider") == "Fast2SMS":
+        provider_msg = f"Real-time SMS OTP dispatched to {cleaned_phone} via Fast2SMS"
+    elif sms_res.get("provider") == "Twilio":
+        provider_msg = f"Real-time SMS OTP dispatched to {cleaned_phone} via Twilio"
+
     return SOSSendOTPResponse(
         status="success",
-        message=f"Verification code sent to {cleaned_phone}",
+        message=provider_msg,
         phone_number=cleaned_phone,
         debug_otp=otp  # Returned for zero-friction local/eval testing
     )

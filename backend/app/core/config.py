@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Emergency Matching & Notification Radius (km)
     NOTIFICATION_RADIUS_KM: float = float(os.getenv("NOTIFICATION_RADIUS_KM", "15.0"))
 
+    # Real-Time SMS Gateway (Fast2SMS for India / Twilio Global)
+    FAST2SMS_API_KEY: str = os.getenv("FAST2SMS_API_KEY", "")
+    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
+    TWILIO_FROM_PHONE: str = os.getenv("TWILIO_FROM_PHONE", "")
+
     class Config:
         case_sensitive = True
 
