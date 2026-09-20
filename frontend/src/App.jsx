@@ -139,6 +139,12 @@ function AppContent() {
 
   // Handle Toggle Donor Availability
   const handleToggleAvailability = async () => {
+    if (!isAuthenticated || !user) {
+      addToast('Please sign in as a registered donor to set your duty status.', 'info');
+      setCurrentView('login');
+      return;
+    }
+
     const active = user || currentDonor;
     const activeCooldown = getCooldownInfo(active);
 
@@ -230,8 +236,13 @@ function AppContent() {
     }
   };
 
-  // Handle Respond to Emergency - Enforces Compulsory Pre-Donation Verification Alert
+  // Handle Respond to Emergency - Enforces Registered Donor & Compulsory Pre-Donation Verification Alert
   const handleRespondToEmergency = (emergency) => {
+    if (!isAuthenticated || !user) {
+      addToast('Please sign in as a registered donor to accept emergency requests.', 'info');
+      setCurrentView('login');
+      return;
+    }
     setPendingEmergencyForDonation(emergency);
     setIsVerificationModalOpen(true);
   };
@@ -343,6 +354,7 @@ function AppContent() {
             }}
             onNavigateTracker={() => setCurrentView('tracker')}
             onNavigateAcceptor={() => setCurrentView('acceptor')}
+            onNavigateLogin={() => setCurrentView('login')}
           />
         )}
 

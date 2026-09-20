@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Clock, MapPin, X, ArrowRight, ShieldAlert, Lock } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, X, ArrowRight, ShieldAlert, Lock, LogIn } from 'lucide-react';
 import { getCooldownInfo, isBloodCompatible } from '../utils/bloodCompatibility';
 
 export default function EmergencyBanner({ emergency, onRespond, onDismiss, currentDonor }) {
@@ -60,14 +60,23 @@ export default function EmergencyBanner({ emergency, onRespond, onDismiss, curre
           <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 mt-1 sm:mt-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-white/20">
             <button
               onClick={() => onRespond(emergency)}
-              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg font-extrabold text-xs sm:text-sm transition-all shadow-sm ${!isCompatible
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg font-extrabold text-xs sm:text-sm transition-all shadow-sm ${
+                !currentDonor?.id
+                  ? 'bg-white text-red-700 hover:bg-red-50 active:scale-95'
+                  : !isCompatible
                   ? 'bg-amber-100 text-red-900 border border-amber-300 hover:bg-amber-200'
                   : cooldownInfo.isInCooldown
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                    : 'bg-white text-red-700 hover:bg-red-50 active:scale-95'
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                  : 'bg-white text-red-700 hover:bg-red-50 active:scale-95'
                 }`}
             >
-              {!isCompatible ? (
+              {!currentDonor?.id ? (
+                <>
+                  <LogIn className="w-3.5 h-3.5 text-red-600" />
+                  <span>Sign In to Accept</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              ) : !isCompatible ? (
                 <>
                   <Lock className="w-3.5 h-3.5 text-red-600" />
                   <span>Incompatible Blood</span>
