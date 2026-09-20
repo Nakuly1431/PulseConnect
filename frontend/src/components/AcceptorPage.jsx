@@ -14,7 +14,8 @@ import {
   Clock,
   ChevronRight,
   FileText,
-  HeartHandshake
+  HeartHandshake,
+  MapPin
 } from 'lucide-react';
 import DonorSearch from './DonorSearch';
 import DonorCard from './DonorCard';
@@ -43,6 +44,7 @@ export default function AcceptorPage({
   const [recipientBloodGroup, setRecipientBloodGroup] = useState('O+');
 
   const compatibleTypes = BLOOD_COMPATIBILITY_MAP[recipientBloodGroup] || [recipientBloodGroup];
+  const hasEnteredCity = Boolean(searchQuery && searchQuery.trim());
 
   return (
     <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-10 2xl:px-12 py-6 sm:py-8 space-y-8 animate-fadeIn relative">
@@ -251,26 +253,54 @@ export default function AcceptorPage({
               <div key={n} className="h-64 rounded-2xl bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
             ))}
           </div>
+        ) : !hasEnteredCity ? (
+          <div className="p-8 sm:p-14 rounded-3xl bg-white dark:bg-slate-900 border-2 border-dashed border-red-200 dark:border-red-950/70 text-center shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-4 shadow-sm ring-4 ring-red-500/10">
+              <MapPin className="w-8 h-8 animate-bounce" />
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Enter Your City to View Nearby Donors
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto mt-2 leading-relaxed font-medium">
+              To protect donor privacy and guarantee accurate emergency proximity matching, volunteer donor profiles are only displayed after you enter your city, locality, or district.
+            </p>
+
+            {/* Quick City Buttons */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-xl mx-auto">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider w-full mb-1">
+                Tap a City or Locality to View Donors:
+              </span>
+              {['Bhubaneswar', 'Khordha', 'Patia', 'Nayapalli', 'Saheed Nagar', 'Chandrasekharpur', 'Khandagiri', 'Jatni'].map((city) => (
+                <button
+                  key={city}
+                  type="button"
+                  onClick={() => onChangeSearchQuery && onChangeSearchQuery(city)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-300 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-xs"
+                >
+                  📍 {city}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : donors.length === 0 ? (
           <div className="p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center shadow-sm">
             <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Matching Donors Found</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">No Matching Donors in "{searchQuery}"</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-              Try increasing the search radius, selecting "All" blood groups, or clearing the city search to find available donors.
+              Try increasing the emergency search radius or selecting "All" blood groups to broaden your search.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button
                 onClick={() => {
                   onSelectBloodGroup('All');
-                  onChangeSearchQuery('');
                   onToggleOnlyAvailable(false);
                   if (onChangeRadiusKm) onChangeRadiusKm(100);
                 }}
                 className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm transition-colors"
               >
-                Reset Search Filters
+                Expand Search Radius (100+ km)
               </button>
               <button
                 onClick={onOpenSOS}

@@ -187,10 +187,27 @@ export const api = {
     }
   },
 
-  // One-click blood request handshake
+  // Direct blood request handshake with patient need details
   async requestBlood(donorId, reqData = {}) {
-    const response = await apiClient.post(`/donors/${donorId}/request`, reqData);
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.post(`/donors/${donorId}/request`, reqData);
+      return { data: response.data, isLive: true };
+    } catch (error) {
+      if (error.response?.data?.detail) {
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      // If server offline, simulate mock success for demo
+      return {
+        data: {
+          id: Date.now(),
+          donor_id: donorId,
+          status: 'Requested',
+          notes: reqData.notes || 'Emergency direct blood request',
+          timestamp: new Date().toISOString()
+        },
+        isLive: false
+      };
+    }
   },
 
   // Send SOS OTP verification

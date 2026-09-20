@@ -10,6 +10,7 @@ import ProfileDrawer from './components/ProfileDrawer';
 import ProfilePage from './components/ProfilePage';
 import AdminPage from './components/AdminPage';
 import DonorVerificationModal from './components/DonorVerificationModal';
+import DirectBloodRequestModal from './components/DirectBloodRequestModal';
 import AnimatedBackground from './components/AnimatedBackground';
 import { api } from './services/api';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -73,6 +74,8 @@ function AppContent() {
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [pendingEmergencyForDonation, setPendingEmergencyForDonation] = useState(null);
+  const [directRequestDonor, setDirectRequestDonor] = useState(null);
+  const [isDirectRequestModalOpen, setIsDirectRequestModalOpen] = useState(false);
   const [dismissedBanner, setDismissedBanner] = useState(false);
 
   // Toast Notifications
@@ -89,18 +92,22 @@ function AppContent() {
   // Load Data
   const loadData = useCallback(async () => {
     try {
-      // 1. Fetch Donors
-      const { data: donorList, isLive } = await api.searchDonors({
-        blood_group: selectedBloodGroup,
-        only_available: onlyAvailable,
-        locality: searchQuery,
-        radius_km: radiusKm,
-        lat: searchCenter?.lat,
-        lng: searchCenter?.lng
-      });
-      const safeDonors = Array.isArray(donorList) ? donorList : [];
-      setDonors(safeDonors);
-      setIsLiveServer(isLive);
+      // 1. Fetch Donors only if city/locality search is entered
+      if (searchQuery && searchQuery.trim()) {
+        const { data: donorList, isLive } = await api.searchDonors({
+          blood_group: selectedBloodGroup,
+          only_available: onlyAvailable,
+          locality: searchQuery,
+          radius_km: radiusKm,
+          lat: searchCenter?.lat,
+          lng: searchCenter?.lng
+        });
+        const safeDonors = Array.isArray(donorList) ? donorList : [];
+        setDonors(safeDonors);
+        setIsLiveServer(isLive);
+      } else {
+        setDonors([]);
+      }
 
       // 2. Fetch Emergencies
       const { data: emergencyList } = await api.fetchActiveSOS();
@@ -173,13 +180,40 @@ function AppContent() {
     }
   };
 
-  // Handle One-Click Request Blood
-  const handleRequestBlood = async (donorId) => {
+  // Handle Request Blood from Donor - Opens Detailed Request Process Modal
+  const handleRequestBlood = (donor) => {
+    setDirectRequestDonor(donor);
+    setIsDirectRequestModalOpen(true);
+  };
+
+  // Handle Direct Blood Request Submission & Donor Notification
+  const handleDirectRequestSubmit = async (requestData) => {
+    if (!directRequestDonor) return;
     try {
-      await api.requestBlood(donorId);
-      addToast('Emergency match request dispatched to donor!', 'success');
-    } catch {
-      addToast('Failed to send request. Please try direct contact.', 'error');
+      const res = await api.requestBlood(directRequestDonor.id, requestData);
+      addToast(
+        `Blood request dispatched! ${directRequestDonor.full_name} has been notified with your patient details and contact number.`,
+        'success'
+      );
+      // Persist in localStorage for tracking
+      try {
+        const existing = JSON.parse(localStorage.getItem('pulseconnect_my_direct_requests') || '[]');
+        const newEntry = {
+          id: res.data?.id || Date.now(),
+          donor_id: directRequestDonor.id,
+          donor_name: directRequestDonor.full_name,
+          donor_blood_group: directRequestDonor.blood_group,
+          ...requestData,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('pulseconnect_my_direct_requests', JSON.stringify([newEntry, ...existing]));
+      } catch (storageErr) {
+        console.warn('Could not save direct request to localStorage:', storageErr);
+      }
+      loadData();
+    } catch (err) {
+      addToast(err.message || 'Failed to dispatch blood request.', 'error');
+      throw err;
     }
   };
 
@@ -517,6 +551,17 @@ function AppContent() {
         emergency={pendingEmergencyForDonation}
         currentDonor={user || currentDonor}
         onConfirmDonation={handleConfirmVerifiedDonation}
+      />
+
+      {/* Direct Blood Request Detail Modal */}
+      <DirectBloodRequestModal
+        isOpen={isDirectRequestModalOpen}
+        onClose={() => {
+          setIsDirectRequestModalOpen(false);
+          setDirectRequestDonor(null);
+        }}
+        donor={directRequestDonor}
+        onSubmit={handleDirectRequestSubmit}
       />
 
       {/* Toast Notification Stack - clears mobile bottom navigation bar */}

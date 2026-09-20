@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.models.donation_log import DonationLog
+from app.models.notification import Notification
 from app.schemas.user import UserResponse, AvailabilityToggle
 from app.schemas.donation import DonationRequestCreate, DonationLogResponse
 from app.core.compatibility import (
@@ -141,13 +142,46 @@ def request_blood_from_donor(
             detail=f"Donor is currently in active 90-day cooldown until {donor.cooldown_until} ({days_left} days remaining) and cannot accept donation requests."
         )
 
+    patient_name = (req_data.patient_name or "").strip() if req_data else ""
+    requester_name = (req_data.requester_name or "").strip() if req_data else ""
+    requester_phone = (req_data.requester_phone or "").strip() if req_data else ""
+    hospital_name = (req_data.hospital_name or "").strip() if req_data else ""
+    hospital_locality = (req_data.hospital_locality or "").strip() if req_data else ""
+    units_needed = req_data.units_needed if req_data and req_data.units_needed else 1
+    component_type = (req_data.component_type or "Whole Blood") if req_data else "Whole Blood"
+    blood_group = (req_data.blood_group or donor.blood_group) if req_data else donor.blood_group
+    urgency = (req_data.urgency_level or "Immediate") if req_data else "Immediate"
+    custom_notes = (req_data.notes or "") if req_data else ""
+
+    summary_notes = (
+        f"Direct Request: {units_needed} unit(s) {blood_group} ({component_type}) "
+        f"for {patient_name or 'Patient'} at {hospital_name or 'Hospital'} "
+        f"({hospital_locality or 'Locality'}). Requester: {requester_name or 'Attendant'} "
+        f"(Phone: {requester_phone or 'N/A'}). Urgency: {urgency}. Note: {custom_notes}"
+    )
+
     new_log = DonationLog(
         donor_id=donor.id,
         request_id=req_data.request_id if req_data else None,
         status="Requested",
-        notes=req_data.notes if req_data else "Emergency proximity blood request"
+        notes=summary_notes[:495]
     )
     db.add(new_log)
+
+    # Create In-App Notification directly for the requested donor
+    notif_msg = (
+        f"🚨 Direct Request: {units_needed} unit(s) {blood_group} ({component_type}) "
+        f"for {patient_name or 'Patient'} at {hospital_name or 'Hospital'} "
+        f"({hospital_locality or 'Locality'}). Attendant: {requester_name or 'Attendant'} "
+        f"(📞 {requester_phone or 'N/A'}). Urgency: {urgency}."
+    )
+    new_notif = Notification(
+        user_id=donor.id,
+        message=notif_msg[:495],
+        is_read=False
+    )
+    db.add(new_notif)
+
     db.commit()
     db.refresh(new_log)
 
@@ -159,5 +193,6 @@ def request_blood_from_donor(
         notes=new_log.notes,
         timestamp=new_log.timestamp,
         donor_name=donor.full_name,
-        donor_blood_group=donor.blood_group
+        donor_blood_group=donor.blood_group,
+        hospital_name=hospital_name or donor.locality
     )

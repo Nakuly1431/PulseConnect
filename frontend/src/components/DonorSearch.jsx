@@ -68,11 +68,18 @@ export default function DonorSearch({
       {/* Search Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex flex-wrap items-center gap-2">
             <span>Find Compatible Donors</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-bold border border-red-200 dark:border-red-900/50">
-              {totalMatchingDonors} Ready
-            </span>
+            {searchQuery?.trim() ? (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
+                {totalMatchingDonors} Donors in {searchQuery}
+              </span>
+            ) : (
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                <MapPin className="w-3 h-3 text-amber-600" />
+                <span>Enter City to View Donors</span>
+              </span>
+            )}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             Pan-India city, state, and regional donor matching for life-saving emergencies
@@ -229,11 +236,20 @@ export default function DonorSearch({
       </div>
 
       {/* 3. City, State & Locality Search */}
-      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+      <div className={`p-4 rounded-2xl border transition-all ${
+        !searchQuery
+          ? 'bg-red-50/30 dark:bg-red-950/20 border-red-300 dark:border-red-900/60 ring-2 ring-red-500/10'
+          : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+      } space-y-3`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-          <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-red-500" />
-            <span>Search by City, State, Locality or Hospital</span>
+          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-red-600 animate-bounce" />
+            <span>Enter City or Locality to View Donors</span>
+            {!searchQuery && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-600 text-white uppercase tracking-wider">
+                Required
+              </span>
+            )}
           </label>
           {searchQuery && (
             <button
@@ -252,8 +268,8 @@ export default function DonorSearch({
             type="text"
             value={searchQuery}
             onChange={(e) => onChangeSearchQuery(e.target.value)}
-            placeholder="Type city (e.g. Mumbai, Delhi, Bengaluru), state, or hospital name..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 transition-all"
+            placeholder="Type city (e.g. Bhubaneswar, Khordha, Cuttack, Patia)..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all shadow-xs"
           />
         </div>
 

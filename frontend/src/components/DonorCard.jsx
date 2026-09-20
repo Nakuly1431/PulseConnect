@@ -5,18 +5,10 @@ export default function DonorCard({ donor, onRequestBlood }) {
   const [requestStatus, setRequestStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
   const [showFullPhone, setShowFullPhone] = useState(false);
 
-  const handleRequest = async () => {
-    if (requestStatus === 'sent' || donor.is_in_cooldown || !donor.is_available) return;
-    
-    // Instant Optimistic Transition
-    setRequestStatus('sending');
-    try {
-      if (onRequestBlood) {
-        await onRequestBlood(donor.id);
-      }
-      setRequestStatus('sent');
-    } catch {
-      setRequestStatus('idle');
+  const handleRequest = () => {
+    if (donor.is_in_cooldown || !donor.is_available) return;
+    if (onRequestBlood) {
+      onRequestBlood(donor);
     }
   };
 
@@ -124,28 +116,14 @@ export default function DonorCard({ donor, onRequestBlood }) {
       <div className="mt-5">
         <button
           onClick={handleRequest}
-          disabled={!isEligible || requestStatus === 'sent' || requestStatus === 'sending'}
+          disabled={!isEligible}
           className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 ${
-            requestStatus === 'sent'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : requestStatus === 'sending'
-              ? 'bg-red-400 text-white cursor-wait'
-              : !isEligible
+            !isEligible
               ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
               : 'bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white shadow-md shadow-red-600/20'
           }`}
         >
-          {requestStatus === 'sent' ? (
-            <>
-              <Check className="w-4 h-4" />
-              <span>Request Sent ✓</span>
-            </>
-          ) : requestStatus === 'sending' ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Sending Match...</span>
-            </>
-          ) : !donor.is_available ? (
+          {!donor.is_available ? (
             <span>Currently Off-Duty</span>
           ) : donor.is_in_cooldown ? (
             <span>In Cooldown</span>
