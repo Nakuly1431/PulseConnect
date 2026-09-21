@@ -232,7 +232,7 @@ export default function AdminPage({ onNavigateBack, addToast }) {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                All Accounts Verified
+                No Accounts To Verify
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                 No users or hospital profiles are currently pending administrative verification.
