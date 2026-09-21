@@ -2,7 +2,9 @@ import datetime
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.emergency import EmergencyRequest
+from app.models.donation_log import DonationLog
 from app.core.security import hash_password
+
 
 ODISHA_DONORS = [
     {
@@ -433,3 +435,35 @@ def seed_database(db: Session):
             db.add(new_em)
 
     db.commit()
+
+    # 4. Seed Verified Donation Mission History for Demo Donor (Subrat Jena) if empty
+    subrat = db.query(User).filter(User.email == "subrat.jena@demo.pulseconnect.org").first()
+    if subrat:
+        subrat_logs = db.query(DonationLog).filter(DonationLog.donor_id == subrat.id).count()
+        if subrat_logs == 0:
+            past_missions = [
+                DonationLog(
+                    donor_id=subrat.id,
+                    request_id=None,
+                    status="Fulfilled",
+                    notes="Emergency Whole Blood transfusion for trauma victim at AIIMS Bhubaneswar ICU. 1 Unit O+ verified.",
+                    timestamp=datetime.datetime(2026, 5, 10, 14, 30)
+                ),
+                DonationLog(
+                    donor_id=subrat.id,
+                    request_id=None,
+                    status="Fulfilled",
+                    notes="Critical Dengue platelet dispatch for pediatric unit at Apollo Hospitals Bhubaneswar. Verified mission.",
+                    timestamp=datetime.datetime(2026, 2, 18, 10, 15)
+                ),
+                DonationLog(
+                    donor_id=subrat.id,
+                    request_id=None,
+                    status="Fulfilled",
+                    notes="Urgent surgical supply dispatch for cardiac bypass surgery at KIMS Hospital, Patia.",
+                    timestamp=datetime.datetime(2025, 11, 4, 16, 45)
+                )
+            ]
+            db.add_all(past_missions)
+            db.commit()
+

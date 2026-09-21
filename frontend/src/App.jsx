@@ -290,11 +290,11 @@ function AppContent() {
 
     // Optimistic UI: immediately remove from active board
     setEmergencies(prev => prev.filter(e => e.id !== emergency.id));
-    
     try {
-      const verifiedNotes = `Verified Donor (${currentDonor?.full_name || 'Volunteer'}) - 6/6 Compulsory Pre-Donation Standards Verified at ${new Date().toLocaleTimeString()} [Phone: ${verificationDetails.verifiedPhone || currentDonor?.phone_number || 'Confirmed'}]`;
+      const effectiveDonor = user || currentDonor;
+      const verifiedNotes = `Verified Donor (${effectiveDonor?.full_name || 'Volunteer'}) - 6/6 Compulsory Pre-Donation Standards Verified at ${new Date().toLocaleTimeString()} [Phone: ${verificationDetails.verifiedPhone || effectiveDonor?.phone_number || 'Confirmed'}]`;
       await api.respondToSOS(emergency.id, {
-        donor_id: currentDonor?.id,
+        donor_id: effectiveDonor?.id,
         notes: verifiedNotes
       });
       addToast(

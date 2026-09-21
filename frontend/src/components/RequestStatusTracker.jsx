@@ -181,7 +181,7 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
               scope === 'my'
                 ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             My Requests & Missions
@@ -191,7 +191,7 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
               scope === 'all'
                 ? 'bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             All Network Requests (Admin Ledger)

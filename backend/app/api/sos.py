@@ -313,7 +313,8 @@ def get_active_sos_requests(
 def respond_to_sos(
     request_id: int,
     payload: Optional[EmergencyRespondRequest] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """
     Donor accepts an emergency request.
@@ -324,7 +325,8 @@ def respond_to_sos(
         raise HTTPException(status_code=404, detail="Emergency request not found")
 
     today = date.today()
-    donor_id = payload.donor_id if payload and payload.donor_id else None
+    auth_donor_id = current_user.id if (current_user and isinstance(current_user, User) and hasattr(current_user, "id")) else None
+    donor_id = payload.donor_id if payload and payload.donor_id else auth_donor_id
     if not donor_id:
         # Pick first available matching donor who is compatible AND NOT currently in cooldown
         compatible_groups = get_compatible_donor_types(emergency.blood_group)

@@ -28,4 +28,5 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
-    donations = relationship("DonationLog", back_populates="donor", cascade="all, delete-orphan")
+    donations = relationship("DonationLog", back_populates="donor", cascade="all, delete-orphan", foreign_keys="[DonationLog.donor_id]")
+
