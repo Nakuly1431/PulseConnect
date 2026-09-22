@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { MOCK_DONORS, MOCK_EMERGENCIES, MOCK_STATS, MOCK_TRACKER_DATA } from './mockData';
 
-const rawApiUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
+let rawApiUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api').trim().replace(/\/+$/, '');
+if (rawApiUrl.includes('localhost:8000')) {
+  rawApiUrl = rawApiUrl.replace('localhost:8000', '127.0.0.1:8000');
+}
 const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 const apiClient = axios.create({
