@@ -307,6 +307,21 @@ export const api = {
     return { data: response.data, isLive: true };
   },
 
+  // Admin: Fetch All Users (Donors, Hospitals, Admins)
+  async fetchAdminUsers(role = 'all', search = '') {
+    const params = {};
+    if (role && role !== 'all') params.role = role;
+    if (search && search.trim()) params.search = search.trim();
+    const response = await apiClient.get('/admin/users', { params });
+    return { data: response.data, isLive: true };
+  },
+
+  // Admin: Delete User (Moderation)
+  async deleteAdminUser(userId) {
+    const response = await apiClient.delete(`/admin/users/${userId}`);
+    return { data: response.data, isLive: true };
+  },
+
   // Admin: Fetch Pending Verifications
   async fetchPendingVerifications() {
     const response = await apiClient.get('/admin/users/pending-verification');

@@ -17,7 +17,9 @@ import {
   Compass,
   Building2,
   Navigation2,
-  Globe2
+  Globe2,
+  LocateFixed,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DONOR_BLOOD_GROUPS } from '../utils/bloodCompatibility';
@@ -41,12 +43,15 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     }
   };
 
-  // Register Form State - Pan-India by default
-  const [selectedState, setSelectedState] = useState('Karnataka');
-  const [selectedCity, setSelectedCity] = useState('Bengaluru');
+  // Register Form State - State and City start blank until entered or GPS auto-detected
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
   const [isCustomCity, setIsCustomCity] = useState(false);
   const [customCityName, setCustomCityName] = useState('');
   const [localArea, setLocalArea] = useState('');
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [gpsLocationStatus, setGpsLocationStatus] = useState(null);
+  const [userCoords, setUserCoords] = useState({ lat: 0.0, lng: 0.0 });
 
   const [accountRole, setAccountRole] = useState('donor_acceptor'); // 'donor_acceptor' | 'hospital'
   const [hospitalName, setHospitalName] = useState('');
@@ -72,28 +77,19 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       if (onSuccess) onSuccess();
       else if (onNavigate) onNavigate('donor');
     } catch (err) {
-      // Privacy-preserving error message: does not reveal whether email exists
       setErrorMessage(err.message || 'Invalid email or password');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-
-
-  // Handle State Dropdown Change
+  // Handle State Dropdown Change - DO NOT pre-fill any city automatically
   const handleStateChange = (stateName) => {
     setSelectedState(stateName);
-    const sData = getStateData(stateName);
-    if (sData && sData.cities && sData.cities.length > 0) {
-      const firstCity = sData.cities[0];
-      setSelectedCity(firstCity.name);
-      setIsCustomCity(false);
-      setCustomCityName('');
-    } else if (sData) {
-      setSelectedCity('Other');
-      setIsCustomCity(true);
-    }
+    setSelectedCity('');
+    setIsCustomCity(false);
+    setCustomCityName('');
+    setGpsLocationStatus(null);
   };
 
   // Handle City Dropdown Change
@@ -104,6 +100,11 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     } else {
       setIsCustomCity(false);
       setSelectedCity(cityName);
+      const sData = getStateData(selectedState);
+      const cData = sData?.cities?.find(c => c.name === cityName);
+      if (cData) {
+        setUserCoords({ lat: cData.lat, lng: cData.lng });
+      }
     }
   };
 
@@ -113,6 +114,123 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
     setSelectedCity(hub.city);
     setIsCustomCity(false);
     setCustomCityName('');
+    setUserCoords({ lat: hub.lat, lng: hub.lng });
+    setGpsLocationStatus(null);
+  };
+
+  // Fast GPS Auto-Detect Location Handler
+  const handleUseGPS = () => {
+    if (!navigator.geolocation) {
+      setErrorMessage('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    setGpsLocationStatus(null);
+    setErrorMessage('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserCoords({ lat: latitude, lng: longitude });
+
+        let detectedState = '';
+        let detectedCity = '';
+        let detectedArea = '';
+
+        try {
+          // OpenStreetMap Nominatim reverse geocoder
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            detectedState = addr.state || '';
+            detectedCity = addr.city || addr.town || addr.municipality || addr.district || addr.county || addr.suburb || '';
+            detectedArea = addr.suburb || addr.neighbourhood || addr.residential || addr.road || '';
+          }
+        } catch (fetchErr) {
+          console.warn('Network reverse geocoding notice:', fetchErr);
+        }
+
+        // Fallback: match closest known city and state from coordinates in INDIA_STATES_DATA
+        if (!detectedState) {
+          let closestState = '';
+          let closestCity = '';
+          let minDist = Infinity;
+          INDIA_STATES_DATA.forEach(s => {
+            s.cities.forEach(c => {
+              const d = Math.hypot(c.lat - latitude, c.lng - longitude);
+              if (d < minDist) {
+                minDist = d;
+                closestState = s.state;
+                closestCity = c.name;
+              }
+            });
+          });
+          if (closestState) {
+            detectedState = closestState;
+            detectedCity = closestCity;
+          }
+        }
+
+        // Match detectedState with INDIA_STATES_DATA
+        const matchedStateObj = INDIA_STATES_DATA.find(
+          s => s.state.toLowerCase() === (detectedState || '').toLowerCase() ||
+               (detectedState || '').toLowerCase().includes(s.state.toLowerCase()) ||
+               s.state.toLowerCase().includes((detectedState || '').toLowerCase())
+        );
+
+        const finalState = matchedStateObj ? matchedStateObj.state : detectedState;
+        if (finalState) {
+          setSelectedState(finalState);
+        }
+
+        // Match city
+        if (matchedStateObj && detectedCity) {
+          const matchedCityObj = matchedStateObj.cities.find(
+            c => c.name.toLowerCase() === detectedCity.toLowerCase() ||
+                 c.name.toLowerCase().includes(detectedCity.toLowerCase()) ||
+                 detectedCity.toLowerCase().includes(c.name.toLowerCase())
+          );
+
+          if (matchedCityObj) {
+            setSelectedCity(matchedCityObj.name);
+            setIsCustomCity(false);
+            setCustomCityName('');
+          } else {
+            setSelectedCity('OTHER_CUSTOM');
+            setIsCustomCity(true);
+            setCustomCityName(detectedCity);
+          }
+        } else if (detectedCity) {
+          setSelectedCity('OTHER_CUSTOM');
+          setIsCustomCity(true);
+          setCustomCityName(detectedCity);
+        }
+
+        if (detectedArea && !localArea) {
+          setLocalArea(detectedArea);
+        }
+
+        setGpsLocationStatus({
+          success: true,
+          message: `Location auto-detected: ${detectedCity || 'Location'}, ${finalState}`
+        });
+        setIsDetectingLocation(false);
+      },
+      (geoErr) => {
+        setIsDetectingLocation(false);
+        let msg = 'Unable to retrieve your location.';
+        if (geoErr.code === 1) msg = 'Location permission denied. Please allow location access in your browser or select manually.';
+        else if (geoErr.code === 2) msg = 'Location unavailable. Please check your device GPS.';
+        else if (geoErr.code === 3) msg = 'Location request timed out. Please try again.';
+        setErrorMessage(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   // Handle Register Submit
@@ -136,7 +254,17 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       }
     }
 
-    const effectiveCity = isCustomCity ? (customCityName.trim() || selectedState) : selectedCity;
+    if (!selectedState) {
+      setErrorMessage('Please select your State / UT or use the GPS location button.');
+      return;
+    }
+
+    const effectiveCity = isCustomCity ? customCityName.trim() : selectedCity;
+    if (!effectiveCity) {
+      setErrorMessage('Please select or enter your City / District.');
+      return;
+    }
+
     const finalLocality = [localArea.trim(), effectiveCity, selectedState].filter(Boolean).join(', ');
 
     setIsSubmitting(true);
@@ -150,6 +278,8 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
         locality: finalLocality,
         city: effectiveCity,
         state: selectedState,
+        latitude: userCoords.lat || 0.0,
+        longitude: userCoords.lng || 0.0,
         role: accountRole,
         hospital_name: accountRole === 'hospital' ? hospitalName.trim() : null,
         license_number: accountRole === 'hospital' ? licenseNumber.trim() : null
@@ -157,14 +287,14 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       if (onSuccess) onSuccess();
       else if (onNavigate) onNavigate('donor');
     } catch (err) {
-      // Privacy-preserving error message: does not reveal whether email exists
       setErrorMessage(err.message || 'Registration failed. If you already have an account, please log in.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const currentStateData = getStateData(selectedState) || INDIA_STATES_DATA[0];
+  const currentStateData = selectedState ? getStateData(selectedState) : null;
+  const currentStateCities = currentStateData ? currentStateData.cities : [];
 
   return (
     <div className="min-h-[calc(100vh-80px)] py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-center animate-fadeIn">
@@ -542,17 +672,49 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
             {/* --- LOCATION SECTION: PAN-INDIA SETTINGS --- */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-4">
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                     <MapPin className="w-4 h-4 text-red-500" />
                     <span>Donor Location (All Over India) *</span>
                   </label>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    Select your State & City and enter your local area or hospital for emergency donor matching.
+                    Use GPS for 1-click fast entry or choose your State and City below.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleUseGPS}
+                  disabled={isDetectingLocation}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 active:scale-95 transition-all shadow-md shadow-red-600/25 disabled:opacity-60 shrink-0"
+                  title="Detect my current location via GPS"
+                >
+                  {isDetectingLocation ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Detecting Location...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LocateFixed className="w-4 h-4" />
+                      <span>Use GPS Location</span>
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* GPS Auto-Detect Status Banner */}
+              {gpsLocationStatus && (
+                <div className={`p-3 rounded-xl border flex items-center gap-2 text-xs animate-fadeIn ${
+                  gpsLocationStatus.success
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                }`}>
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span className="font-semibold">{gpsLocationStatus.message}</span>
+                </div>
+              )}
 
               {/* Quick Hub Chips */}
               <div>
@@ -594,6 +756,9 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                       onChange={(e) => handleStateChange(e.target.value)}
                       className="w-full pl-10 pr-8 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm font-medium transition-all appearance-none cursor-pointer"
                     >
+                      <option value="" disabled className="text-slate-400">
+                        -- Select State / UT --
+                      </option>
                       {INDIA_STATES_DATA.map((item) => (
                         <option key={item.state} value={item.state}>
                           {item.state}
@@ -606,7 +771,7 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                   </div>
                 </div>
 
-                {/* City / District Selector */}
+                {/* City / District Selector - Disabled until state is chosen */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     City / District *
@@ -614,18 +779,24 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                   <div className="relative">
                     <Navigation2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <select
+                      disabled={!selectedState}
                       value={isCustomCity ? 'OTHER_CUSTOM' : selectedCity}
                       onChange={(e) => handleCityChange(e.target.value)}
-                      className="w-full pl-10 pr-8 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm font-medium transition-all appearance-none cursor-pointer"
+                      className="w-full pl-10 pr-8 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm font-medium transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {currentStateData.cities.map((c) => (
+                      <option value="" disabled className="text-slate-400">
+                        {selectedState ? '-- Select City / District --' : '-- Select State First --'}
+                      </option>
+                      {currentStateCities.map((c) => (
                         <option key={c.name} value={c.name}>
                           {c.name}
                         </option>
                       ))}
-                      <option value="OTHER_CUSTOM">
-                        + Other / Custom City or District...
-                      </option>
+                      {selectedState && (
+                        <option value="OTHER_CUSTOM">
+                          + Other / Custom City or District...
+                        </option>
+                      )}
                     </select>
                     <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                       ▼

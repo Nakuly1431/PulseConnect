@@ -47,6 +47,71 @@ def get_pending_verifications(
     )
     return [serialize_user(u) for u in pending_users]
 
+@router.get("/users", response_model=list[UserResponse])
+def get_all_users(
+    role: Optional[str] = Query(None, description="Filter by role ('donor_acceptor', 'hospital', 'admin', 'all')"),
+    search: Optional[str] = Query(None, description="Search across full name, email, phone, locality, city, state, or blood group"),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Fetch all registered donors, hospitals, and admins for full moderation & directory viewing.
+    Supports real-time search and role filtering.
+    """
+    query = db.query(User)
+    if role and role.strip().lower() != "all":
+        query = query.filter(User.role == role.strip().lower())
+
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(
+            (User.full_name.ilike(term)) |
+            (User.email.ilike(term)) |
+            (User.phone_number.ilike(term)) |
+            (User.locality.ilike(term)) |
+            (User.city.ilike(term)) |
+            (User.state.ilike(term)) |
+            (User.blood_group.ilike(term))
+        )
+
+    users = query.order_by(User.created_at.desc()).all()
+    return [serialize_user(u) for u in users]
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Admin moderation: Permanently removes a spam or test user account.
+    Prevents an admin from accidentally deleting their own active profile.
+    """
+    if admin.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Administrators cannot delete their own active account."
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User #{user_id} not found"
+        )
+
+    from app.models.notification import Notification
+    db.query(Notification).filter(Notification.user_id == user.id).delete()
+    db.query(EmergencyRequest).filter(EmergencyRequest.user_id == user.id).update({"user_id": None})
+    db.delete(user)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"User account '{user.full_name}' (#{user_id}) has been successfully removed."
+    }
+
+
 @router.patch("/users/{user_id}/verify", response_model=UserResponse)
 def verify_user(
     user_id: int,
