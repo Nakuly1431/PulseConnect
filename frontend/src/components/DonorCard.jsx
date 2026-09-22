@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapPin, CheckCircle2, ShieldCheck, Phone, Clock, Send, Check, AlertCircle, Navigation } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { MapPin, CheckCircle2, ShieldCheck, Phone, Clock, Send, Check, AlertCircle, Navigation, Lock } from 'lucide-react';
 
 export default function DonorCard({ donor, onRequestBlood }) {
   const [requestStatus, setRequestStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
@@ -97,20 +97,88 @@ export default function DonorCard({ donor, onRequestBlood }) {
           </div>
         </div>
 
-        {/* Masked Contact Info */}
-        <div className="flex items-center justify-between mt-3 px-3 py-2 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
-          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium font-mono">
-            <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <span>{showFullPhone ? donor.phone_number : donor.masked_phone || donor.phone_number}</span>
-          </div>
-          <button
-            onClick={() => setShowFullPhone(!showFullPhone)}
-            className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-semibold underline decoration-dotted"
-          >
-            {showFullPhone ? 'Hide' : 'Reveal'}
-          </button>
-        </div>
+        {/* Masked Contact Info - Protected until donor accepts request */}
+        {(() => {
+          // Check API-returned acceptance flags first
+          let hasAccepted = Boolean(
+            donor.has_accepted ||
+            donor.is_accepted ||
+            donor.request_status === 'Accepted' ||
+            donor.status === 'Accepted'
+          );
+
+          // Cross-reference localStorage: tracker cache and direct request history
+          let isPending = false;
+          if (!hasAccepted) {
+            try {
+              // 1. Check if tracker has an Accepted entry for this donor
+              const trackerData = JSON.parse(localStorage.getItem('pulseconnect_tracker_cache') || '[]');
+              const accepted = trackerData.find(r =>
+                r.source_type?.includes('Direct') &&
+                String(r.assigned_donor?.id) === String(donor.id) &&
+                r.status === 'Accepted'
+              );
+              if (accepted) hasAccepted = true;
+
+              // 2. If we sent a request to this donor, show "Awaiting Reply"
+              if (!hasAccepted) {
+                const myRequests = JSON.parse(localStorage.getItem('pulseconnect_my_direct_requests') || '[]');
+                isPending = myRequests.some(r => String(r.donor_id) === String(donor.id));
+              }
+            } catch {
+              // localStorage unavailable — keep defaults
+            }
+          }
+
+          // Show "Awaiting Reply" pill while request is pending
+          if (isPending && !hasAccepted) {
+            return (
+              <div className="flex items-center justify-between mt-3 px-3 py-2 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/60 text-xs">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium font-mono">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                  <span>{donor.masked_phone || '+91 ••••• ••••'}</span>
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-100/50 dark:bg-blue-900/40 px-2 py-0.5 rounded-md">
+                  <Clock className="w-3 h-3" />
+                  <span>Awaiting Reply</span>
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex items-center justify-between mt-3 px-3 py-2 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium font-mono">
+                <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                <span>
+                  {hasAccepted && showFullPhone
+                    ? donor.phone_number
+                    : (donor.masked_phone || '+91 ••••• ••••')}
+                </span>
+              </div>
+
+              {hasAccepted ? (
+                <button
+                  type="button"
+                  onClick={() => setShowFullPhone(!showFullPhone)}
+                  className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-semibold underline decoration-dotted cursor-pointer"
+                >
+                  {showFullPhone ? 'Hide' : 'Reveal'}
+                </button>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-200/50 dark:bg-slate-700/50 px-2 py-0.5 rounded-md"
+                  title="Donor contact is protected and only revealed after this donor accepts your blood request"
+                >
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  <span>Protected</span>
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
+
 
       {/* Action Button: One-Click Request Blood with Optimistic State */}
       <div className="mt-5">

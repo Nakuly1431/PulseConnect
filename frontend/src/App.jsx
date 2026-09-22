@@ -34,8 +34,8 @@ function AppContent() {
   // Automatically redirect to Sign In ('login') page whenever user logs out
   useEffect(() => {
     if (prevAuthRef.current && !isAuthenticated) {
+      // Only show toast if logout happened while session was active (not on cold start)
       setCurrentView('login');
-      addToast('Logged out successfully. Please sign in to continue.', 'info');
     }
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -47,7 +47,7 @@ function AppContent() {
       // ignore
     }
     setCurrentView('login');
-    addToast('Logged out successfully. Please sign in to continue.', 'info');
+    addToast('Logged out successfully.', 'info');
   };
 
   // State
@@ -191,10 +191,17 @@ function AppContent() {
     if (!directRequestDonor) return;
     try {
       const res = await api.requestBlood(directRequestDonor.id, requestData);
-      addToast(
-        `Blood request dispatched! ${directRequestDonor.full_name} has been notified with your patient details and contact number.`,
-        'success'
-      );
+      if (res.data?._offline_mode) {
+        addToast(
+          `⚠️ Server offline — request saved locally. ${directRequestDonor.full_name} has NOT been notified yet. Reconnect to send.`,
+          'info'
+        );
+      } else {
+        addToast(
+          `Blood request dispatched! ${directRequestDonor.full_name} has been notified with your patient details and contact number.`,
+          'success'
+        );
+      }
       // Persist in localStorage for tracking
       try {
         const existing = JSON.parse(localStorage.getItem('pulseconnect_my_direct_requests') || '[]');
@@ -347,7 +354,7 @@ function AppContent() {
       />
 
       {/* Main Content Area with Bottom Clearance for Mobile App Bar */}
-      <main className="flex-1 pb-20 md:pb-8">
+      <main className="flex-1 pb-20 md:pb-8" style={{ paddingBottom: 'max(5rem, calc(5rem + env(safe-area-inset-bottom, 0px)))' }}>
         {currentView === 'acceptor' && (
           <AcceptorPage
             donors={donors}

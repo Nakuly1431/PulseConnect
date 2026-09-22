@@ -54,10 +54,17 @@ export default function RequestStatusTracker({ onNavigateDashboard, onOpenSOS, o
       const activeScope = (user?.role === 'admin' && scope === 'all') ? 'all' : 'my';
       const res = await api.fetchTrackerRequests(statusFilter, activeScope);
       if (res && res.data) {
+        const requests = Array.isArray(res.data.requests) ? res.data.requests : [];
         setData({
           summary: res.data.summary || { total: 0, accepted: 0, pending: 0, fulfilled: 0 },
-          requests: Array.isArray(res.data.requests) ? res.data.requests : []
+          requests
         });
+        // Cache for DonorCard cross-reference (acceptance status detection)
+        try {
+          localStorage.setItem('pulseconnect_tracker_cache', JSON.stringify(requests));
+        } catch {
+          // ignore storage errors
+        }
       }
     } catch (_err) {
       console.error('Failed to load tracker data:', _err);

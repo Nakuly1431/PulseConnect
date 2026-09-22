@@ -101,6 +101,7 @@ def delete_user(
         )
 
     from app.models.notification import Notification
+    user_name = user.full_name  # Save before deletion to avoid DetachedInstanceError
     db.query(Notification).filter(Notification.user_id == user.id).delete()
     db.query(EmergencyRequest).filter(EmergencyRequest.user_id == user.id).update({"user_id": None})
     db.delete(user)
@@ -108,7 +109,7 @@ def delete_user(
 
     return {
         "status": "success",
-        "message": f"User account '{user.full_name}' (#{user_id}) has been successfully removed."
+        "message": f"User account '{user_name}' (#{user_id}) has been successfully removed."
     }
 
 
@@ -188,12 +189,13 @@ def delete_request(
             detail=f"Emergency request #{request_id} not found"
         )
 
+    patient_name = emergency.patient_name  # Save before deletion to avoid DetachedInstanceError
     db.delete(emergency)
     db.commit()
 
     return {
         "status": "success",
-        "message": f"Emergency request #{request_id} for '{emergency.patient_name}' successfully deleted"
+        "message": f"Emergency request #{request_id} for '{patient_name}' successfully deleted"
     }
 
 @router.get("/stats")

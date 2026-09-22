@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { DONOR_BLOOD_GROUPS } from '../utils/bloodCompatibility';
 import { INDIA_STATES_DATA, POPULAR_REGIONAL_HUBS, getStateData } from '../utils/indiaLocations';
+import { validateIndianPhone } from '../utils/phoneValidation';
 
 export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }) {
   const { login, register } = useAuth();
@@ -265,6 +266,12 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       return;
     }
 
+    const phoneCheck = validateIndianPhone(registerData.phone_number);
+    if (!phoneCheck.isValid) {
+      setErrorMessage(`Emergency Phone: ${phoneCheck.message}`);
+      return;
+    }
+
     const finalLocality = [localArea.trim(), effectiveCity, selectedState].filter(Boolean).join(', ');
 
     setIsSubmitting(true);
@@ -272,7 +279,7 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
       await register({
         full_name: registerData.full_name,
         email: registerData.email,
-        phone_number: registerData.phone_number,
+        phone_number: phoneCheck.e164 || registerData.phone_number,
         password: registerData.password,
         blood_group: accountRole === 'hospital' ? (registerData.blood_group || 'O+') : registerData.blood_group,
         locality: finalLocality,
@@ -615,9 +622,37 @@ export default function AuthPage({ initialTab = 'login', onNavigate, onSuccess }
                     value={registerData.phone_number}
                     onChange={(e) => setRegisterData({ ...registerData, phone_number: e.target.value })}
                     placeholder="+91 98450 12345"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-base sm:text-sm font-medium font-mono transition-all"
+                    className={`w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 text-base sm:text-sm font-medium font-mono transition-all ${
+                      !registerData.phone_number.trim()
+                        ? 'border-slate-200 dark:border-slate-700 focus:ring-red-500'
+                        : validateIndianPhone(registerData.phone_number).isValid
+                        ? 'border-emerald-500 dark:border-emerald-500 focus:ring-emerald-500'
+                        : 'border-amber-500 dark:border-amber-500 focus:ring-amber-500'
+                    }`}
                   />
                 </div>
+                {registerData.phone_number.trim() && (() => {
+                  const check = validateIndianPhone(registerData.phone_number);
+                  return (
+                    <div className={`mt-1.5 text-xs flex items-center gap-1.5 transition-all ${
+                      check.isValid
+                        ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                        : 'text-amber-600 dark:text-amber-400 font-medium'
+                    }`}>
+                      {check.isValid ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Valid Indian Mobile ({check.formatted})</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{check.message}</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

@@ -9,11 +9,11 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "autoprefixer": "^10.6.0",
     "axios": "^1.20.0",
+    "firebase": "^12.19.0",
     "lucide-react": "^1.45.0",
     "postcss": "^8.5.28",
     "react": "^19.1.0",

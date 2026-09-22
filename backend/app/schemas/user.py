@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from app.core.phone import standardize_indian_phone
 
 class UserBase(BaseModel):
     full_name: str
@@ -15,6 +16,11 @@ class UserBase(BaseModel):
     role: Optional[str] = "donor_acceptor"
     hospital_name: Optional[str] = None
     license_number: Optional[str] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        return standardize_indian_phone(v)
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
@@ -36,6 +42,13 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     hospital_name: Optional[str] = None
     license_number: Optional[str] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip() != "":
+            return standardize_indian_phone(v)
+        return v
 
 class UserResponse(BaseModel):
     id: int

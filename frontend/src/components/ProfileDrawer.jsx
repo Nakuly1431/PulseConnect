@@ -79,20 +79,29 @@ export default function ProfileDrawer({
                   90-Day Cooldown Protocol
                 </span>
                 <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
-                  currentDonor.cooldown_until
+                  currentDonor.is_in_cooldown
                     ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                     : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                 }`}>
-                  {currentDonor.cooldown_until ? 'Active Cooldown' : '100% Eligible'}
+                  {currentDonor.is_in_cooldown ? `${currentDonor.cooldown_days_remaining || '?'}d remaining` : '100% Eligible'}
                 </span>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
                 Mandatory 90-day biological replenishment interval between red blood cell donations to protect donor health.
               </p>
               <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-2">
-                <div
-                  className={`h-full rounded-full ${currentDonor.cooldown_until ? 'bg-amber-500 w-3/4' : 'bg-emerald-500 w-full'}`}
-                />
+                {(() => {
+                  // Compute real progress: elapsed = 90 - daysRemaining
+                  const daysRemaining = currentDonor.cooldown_days_remaining || 0;
+                  const elapsed = Math.max(0, Math.min(90, 90 - daysRemaining));
+                  const pct = currentDonor.is_in_cooldown ? Math.round((elapsed / 90) * 100) : 100;
+                  return (
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${currentDonor.is_in_cooldown ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  );
+                })()}
               </div>
             </div>
 

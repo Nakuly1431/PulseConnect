@@ -41,8 +41,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         # Average response time from logged donation requests
         deltas = []
         for log in completed_logs:
-            if log.emergency and log.emergency.created_at and log.timestamp:
-                delta_mins = max(1.0, (log.timestamp - log.emergency.created_at).total_seconds() / 60.0)
+            if log.request and log.request.created_at and log.timestamp:
+                delta_mins = max(1.0, (log.timestamp - log.request.created_at).total_seconds() / 60.0)
                 deltas.append(delta_mins)
         avg_speed = round(sum(deltas) / len(deltas), 1) if deltas else 0.0
 

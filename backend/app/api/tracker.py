@@ -173,30 +173,47 @@ def get_all_request_statuses(
         else:
             comp_status = log.status
 
+        # Parse real data from stored notes (set during request_blood_from_donor)
+        notes_str = log.notes or ""
+        def _extract(label, text):
+            """Extract value after 'Label: ' up to the next period or end of string."""
+            import re
+            match = re.search(rf"{re.escape(label)}:\s*([^.]+)", text)
+            return match.group(1).strip() if match else ""
+
+        parsed_patient    = _extract("for", notes_str).replace("Patient", "").strip() or "Emergency Patient"
+        parsed_hospital   = _extract("at", notes_str).replace("Hospital", "").strip() or "Hospital"
+        parsed_locality   = donor.locality if donor else "Local"
+        parsed_contact    = _extract("Requester", notes_str) or "Direct Match Contact"
+        parsed_phone      = _extract("Phone", notes_str).replace("[Phone Verified ✓]", "").strip() or (
+                                donor.phone_number if donor else ""
+                            )
+        parsed_blood      = donor.blood_group if donor else "Universal"
+
         item = RequestTrackerItem(
             id=f"direct-{log.id}",
             source_type="Direct Request",
             raw_id=log.id,
             status=comp_status,
             urgency_level="Immediate",
-            patient_name="Emergency Match Patient",
-            blood_group=donor.blood_group if donor else "Universal",
+            patient_name=parsed_patient,
+            blood_group=parsed_blood,
             units_needed=1,
             component_type="Whole Blood",
-            hospital_name="Immediate Locality Match",
-            hospital_locality=donor.locality if donor else "Bengaluru",
-            contact_person="Direct Handshake Match",
-            contact_phone="+91 98450 00000",
+            hospital_name=parsed_hospital,
+            hospital_locality=parsed_locality,
+            contact_person=parsed_contact,
+            contact_phone=parsed_phone,
             verification_slip_path=None,
             assigned_donor=assigned_donor_info,
             created_at=log.timestamp,
             accepted_at=log.timestamp if comp_status in ["Accepted", "Fulfilled"] else None,
-            notes=log.notes or "Direct one-on-one donor dispatch"
+            notes=notes_str or "Direct one-on-one donor dispatch"
         )
         items.append(item)
 
-    # Sort all items by created_at descending
-    items.sort(key=lambda x: x.created_at, reverse=True)
+    # Sort all items by created_at descending (guard against None timestamps)
+    items.sort(key=lambda x: x.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     # Calculate summary metrics
     total_count = len(items)

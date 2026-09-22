@@ -1,17 +1,8 @@
 import React, { useState } from 'react';
-import { Search, Info, MapPin, X, Radar, Navigation, LocateFixed } from 'lucide-react';
+import { Search, Info, MapPin, X, Radar, Navigation, LocateFixed, Globe, Building2 } from 'lucide-react';
 import { BLOOD_GROUPS, getCompatibleDonorTypes } from '../utils/bloodCompatibility';
+import { INDIA_STATES_DATA, POPULAR_REGIONAL_HUBS, getStateData } from '../utils/indiaLocations';
 
-const POPULAR_SEARCH_CITIES = [
-  'Bhubaneswar',
-  'Khordha',
-  'Patia',
-  'Saheed Nagar',
-  'Nayapalli',
-  'Chandrasekharpur',
-  'Khandagiri',
-  'Jatni'
-];
 
 export default function DonorSearch({
   selectedBloodGroup,
@@ -61,6 +52,66 @@ export default function DonorSearch({
 
   const compatibleTypes = getCompatibleDonorTypes(selectedBloodGroup);
 
+  // Derive matched state and city list from current query or state selection
+  const matchedState = INDIA_STATES_DATA.find(
+    s => s.state.toLowerCase() === (searchQuery || '').trim().toLowerCase() ||
+         s.cities.some(c => c.name.toLowerCase() === (searchQuery || '').trim().toLowerCase())
+  );
+  const selectedStateName = matchedState ? matchedState.state : '';
+  const currentCities = matchedState ? matchedState.cities : [];
+
+  const handleStateSelect = (stateName) => {
+    if (!stateName) {
+      // Clear state: reset query, radius, and center to defaults
+      onChangeSearchQuery('');
+      if (onChangeRadiusKm) onChangeRadiusKm(25);
+      if (onChangeSearchCenter) {
+        onChangeSearchCenter({ lat: 20.2961, lng: 85.8245, name: 'Bhubaneswar' });
+      }
+      return;
+    }
+    const st = getStateData(stateName);
+    if (st) {
+      onChangeSearchQuery(st.state);
+      if (onChangeRadiusKm && radiusKm < 100) {
+        onChangeRadiusKm(100); // Set to 100km (All Region) to cover entire state
+      }
+      if (onChangeSearchCenter) {
+        onChangeSearchCenter({
+          lat: st.lat,
+          lng: st.lng,
+          name: `${st.state} Region`
+        });
+      }
+    }
+  };
+
+  const handleCitySelect = (cityName) => {
+    if (!cityName) return;
+    const cityObj = currentCities.find(c => c.name.toLowerCase() === cityName.toLowerCase());
+    onChangeSearchQuery(cityName);
+    if (cityObj && onChangeSearchCenter) {
+      onChangeSearchCenter({
+        lat: cityObj.lat,
+        lng: cityObj.lng,
+        name: `${cityObj.name}, ${selectedStateName}`
+      });
+    }
+  };
+
+  const handleHubSelect = (hub) => {
+    onChangeSearchQuery(hub.city);
+    if (onChangeRadiusKm && radiusKm < 50) {
+      onChangeRadiusKm(50);
+    }
+    if (onChangeSearchCenter) {
+      onChangeSearchCenter({
+        lat: hub.lat,
+        lng: hub.lng,
+        name: `${hub.city}, ${hub.state}`
+      });
+    }
+  };
 
   return (
     <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm mb-8 transition-colors">
@@ -235,16 +286,16 @@ export default function DonorSearch({
         </div>
       </div>
 
-      {/* 3. City, State & Locality Search */}
-      <div className={`p-4 rounded-2xl border transition-all ${
+      {/* 3. Pan-India State, City & Locality Search */}
+      <div className={`p-5 rounded-2xl border transition-all ${
         !searchQuery
           ? 'bg-red-50/30 dark:bg-red-950/20 border-red-300 dark:border-red-900/60 ring-2 ring-red-500/10'
           : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-      } space-y-3`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-            <MapPin className="w-4 h-4 text-red-600 animate-bounce" />
-            <span>Enter City or Locality to View Donors</span>
+      } space-y-4`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-red-600 animate-pulse" />
+            <span>Select State / UT or Search City (All 36 States & UTs)</span>
             {!searchQuery && (
               <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-600 text-white uppercase tracking-wider">
                 Required
@@ -262,39 +313,92 @@ export default function DonorSearch({
           )}
         </div>
 
+        {/* State / UT and City Dual Dropdowns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* State Dropdown */}
+          <div className="relative">
+            <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500 pointer-events-none" />
+            <select
+              id="donor-search-state-select"
+              value={selectedStateName}
+              onChange={(e) => handleStateSelect(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all cursor-pointer shadow-xs appearance-none"
+            >
+              <option value="">-- Select Any State / UT (36 States & UTs) --</option>
+              {INDIA_STATES_DATA.map((s) => (
+                <option key={s.state} value={s.state}>
+                  {s.state}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+              ▼
+            </div>
+          </div>
+
+          {/* City / District Dropdown */}
+          <div className="relative">
+            <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <select
+              id="donor-search-city-select"
+              disabled={!selectedStateName}
+              value={currentCities.some(c => c.name.toLowerCase() === (searchQuery || '').toLowerCase()) ? searchQuery : ''}
+              onChange={(e) => handleCitySelect(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all cursor-pointer shadow-xs appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {selectedStateName ? `-- Select Specific City in ${selectedStateName} --` : '-- Select State First for Cities --'}
+              </option>
+              {currentCities.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
+              ▼
+            </div>
+          </div>
+        </div>
+
+        {/* Free-text Keyword Input */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onChangeSearchQuery(e.target.value)}
-            placeholder="Type city (e.g. Bhubaneswar, Khordha, Cuttack, Patia)..."
+            placeholder="Or type any State, City, or Locality (e.g. Maharashtra, Mumbai, Bengaluru, Delhi, Odisha)..."
             className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:border-red-600 transition-all shadow-xs"
           />
         </div>
 
-        {/* Popular City Filter Chips */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-1">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-            Quick Cities:
-          </span>
-          {POPULAR_SEARCH_CITIES.map((city) => {
-            const isActive = searchQuery.toLowerCase() === city.toLowerCase();
-            return (
-              <button
-                key={city}
-                type="button"
-                onClick={() => onChangeSearchQuery(isActive ? '' : city)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-red-600 text-white shadow-sm border border-red-600'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                {city}
-              </button>
-            );
-          })}
+        {/* Popular Pan-India Regional Hub Chips */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+              <Radar className="w-3 h-3 text-red-500" />
+              <span>Popular Hubs:</span>
+            </span>
+            {POPULAR_REGIONAL_HUBS.map((hub) => {
+              const isActive = (searchQuery || '').toLowerCase() === hub.city.toLowerCase() ||
+                               (searchQuery || '').toLowerCase() === hub.state.toLowerCase();
+              return (
+                <button
+                  key={hub.label}
+                  type="button"
+                  onClick={() => handleHubSelect(hub)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-red-600 text-white shadow-sm border border-red-600 scale-105'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {hub.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

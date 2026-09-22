@@ -4,6 +4,7 @@ from app.models.user import User
 from app.models.emergency import EmergencyRequest
 from app.models.donation_log import DonationLog
 from app.core.security import hash_password
+from app.db.pan_india_donors import generate_pan_india_donors
 
 
 ODISHA_DONORS = [
@@ -359,37 +360,44 @@ ODISHA_EMERGENCIES = [
 
 def seed_database(db: Session):
     """
-    Populates 20 verified volunteer donors and active medical emergencies
-    specifically from Odisha (Bhubaneswar and Khordha) for demo and production readiness.
+    Populates 20 verified volunteer donors from EACH of the 36 Indian States and Union Territories
+    (720 donors in total) plus active medical emergencies, admin accounts, and donation missions.
     """
-    existing_count = db.query(User).filter(User.email.like("%@demo.pulseconnect.org")).count()
-    if existing_count >= 20:
-        return
-
     default_pw_hash = hash_password("demo12345")
 
-    # 1. Seed 20 Odisha Donors
-    for donor_info in ODISHA_DONORS:
-        existing = db.query(User).filter(User.email == donor_info["email"]).first()
-        if not existing:
-            new_user = User(
-                full_name=donor_info["full_name"],
-                email=donor_info["email"],
-                password_hash=default_pw_hash,
-                phone_number=donor_info["phone_number"],
-                blood_group=donor_info["blood_group"],
-                locality=donor_info["locality"],
-                city=donor_info["city"],
-                state=donor_info["state"],
-                latitude=donor_info["latitude"],
-                longitude=donor_info["longitude"],
-                total_donations=donor_info["total_donations"],
-                last_donation_date=donor_info["last_donation_date"],
-                is_available=donor_info["is_available"],
-                is_verified=donor_info["is_verified"],
-                role="donor_acceptor"
+    # Fetch existing demo user emails to avoid duplicate queries or insertions
+    existing_emails = set(
+        e[0] for e in db.query(User.email).filter(User.email.like("%@demo.pulseconnect.org")).all()
+    )
+
+    pan_india_donors = generate_pan_india_donors()
+    new_users = []
+    for donor_info in pan_india_donors:
+        if donor_info["email"] not in existing_emails:
+            new_users.append(
+                User(
+                    full_name=donor_info["full_name"],
+                    email=donor_info["email"],
+                    password_hash=default_pw_hash,
+                    phone_number=donor_info["phone_number"],
+                    blood_group=donor_info["blood_group"],
+                    locality=donor_info["locality"],
+                    city=donor_info["city"],
+                    state=donor_info["state"],
+                    latitude=donor_info["latitude"],
+                    longitude=donor_info["longitude"],
+                    total_donations=donor_info["total_donations"],
+                    last_donation_date=donor_info["last_donation_date"],
+                    is_available=donor_info["is_available"],
+                    is_verified=donor_info["is_verified"],
+                    role="donor_acceptor"
+                )
             )
-            db.add(new_user)
+            existing_emails.add(donor_info["email"])
+
+    if new_users:
+        db.add_all(new_users)
+        db.commit()
     
     # 2. Seed Admin & Hospital if not present
     admin_user = db.query(User).filter(User.email == "admin@pulseconnect.org").first()

@@ -408,7 +408,8 @@ export default function Navbar({
       {/* Mobile Fixed Bottom Navigation Bar (< 768px) */}
       <nav 
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-3 py-1.5 shadow-lg shadow-slate-900/10 transition-colors"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-3 pt-1.5 shadow-lg shadow-slate-900/10 transition-colors"
+        style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom, 0.375rem))' }}
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. Need Blood (Acceptor) */}

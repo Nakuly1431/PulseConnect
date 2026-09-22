@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { validateIndianPhone } from '../utils/phoneValidation';
 
 // Medical Compatibility Reference
 const BLOOD_COMPATIBILITY = {
@@ -155,16 +156,27 @@ export default function ProfilePage({
   // Submit Profile Changes
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    const phoneCheck = validateIndianPhone(formData.phone_number);
+    if (!phoneCheck.isValid) {
+      addToast?.(`Emergency Phone error: ${phoneCheck.message}`, 'error');
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      phone_number: phoneCheck.e164 || formData.phone_number
+    };
+
     setIsSaving(true);
     try {
       if (isAuthenticated) {
-        const res = await api.updateProfile(formData);
+        const res = await api.updateProfile(payload);
         if (res?.data) {
           updateUser(res.data);
         }
       } else {
         // Update local session preview for demo
-        updateUser(formData);
+        updateUser(payload);
       }
       addToast?.('Profile details updated successfully!', 'success');
       setIsEditModalOpen(false);
@@ -918,9 +930,37 @@ export default function ProfilePage({
                     required
                     value={formData.phone_number}
                     onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:outline-none transition-colors ${
+                      !formData.phone_number.trim()
+                        ? 'border-slate-300 dark:border-slate-700 focus:ring-red-500'
+                        : validateIndianPhone(formData.phone_number).isValid
+                        ? 'border-emerald-500 dark:border-emerald-500 focus:ring-emerald-500'
+                        : 'border-amber-500 dark:border-amber-500 focus:ring-amber-500'
+                    }`}
                     placeholder="e.g. +91 98765 43210"
                   />
+                  {formData.phone_number.trim() && (() => {
+                    const check = validateIndianPhone(formData.phone_number);
+                    return (
+                      <div className={`mt-1 text-[11px] flex items-center gap-1.5 transition-all ${
+                        check.isValid
+                          ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                          : 'text-amber-600 dark:text-amber-400 font-medium'
+                      }`}>
+                        {check.isValid ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3 shrink-0" />
+                            <span>Valid Indian Mobile ({check.formatted})</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>{check.message}</span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Radio,
@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Upload,
   CheckCircle2,
+  AlertCircle,
   MapPin,
   AlertOctagon,
   Edit3,
@@ -17,11 +18,20 @@ import {
   Check,
   Droplet,
   Plus,
-  Minus
+  Minus,
+  LocateFixed,
+  Navigation2,
+  Loader2
 } from 'lucide-react';
 import { DONOR_BLOOD_GROUPS } from '../utils/bloodCompatibility';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { validateIndianPhone } from '../utils/phoneValidation';
+import { 
+  isFirebaseConfigured, 
+  sendFirebasePhoneOtp, 
+  confirmFirebasePhoneOtp 
+} from '../services/firebase';
 
 export default function SOSModal({
   isOpen,
@@ -50,6 +60,8 @@ export default function SOSModal({
     hospital_locality: '',
     contact_person: '',
     contact_phone: '',
+    latitude: 0.0,
+    longitude: 0.0,
     verification_slip: null,
   });
 
@@ -62,6 +74,12 @@ export default function SOSModal({
   const [debugOtp, setDebugOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState(null);
+  const [isUsingFirebase, setIsUsingFirebase] = useState(false);
+
+  // GPS Auto-Detection State
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState(null);
 
   // Populate data if in edit mode or reset on open
   useEffect(() => {
@@ -77,11 +95,15 @@ export default function SOSModal({
           hospital_locality: initialData.hospital_locality || '',
           contact_person: initialData.contact_person || '',
           contact_phone: initialData.contact_phone || '',
+          latitude: initialData.latitude || 0.0,
+          longitude: initialData.longitude || 0.0,
           verification_slip: null,
         });
         setStep(1);
         setConfirmedEmergency(null);
-        setOtpSent(true); // Edit mode doesn't re-require OTP unless changed
+        setOtpSent(true);
+        setGpsStatus(null);
+        setIsDetectingGps(false);
       } else if (isAuthenticated && user) {
         // Logged-in user: auto-populate from profile and skip Step 1 straight to Step 2!
         setFormData({
@@ -94,6 +116,8 @@ export default function SOSModal({
           hospital_locality: user.locality || '',
           contact_person: user.full_name || '',
           contact_phone: user.phone_number || '',
+          latitude: user.latitude || 0.0,
+          longitude: user.longitude || 0.0,
           verification_slip: null,
         });
         setStep(2); // Automatically skip Step 1!
@@ -102,6 +126,10 @@ export default function SOSModal({
         setOtpCode('');
         setDebugOtp('');
         setOtpError('');
+        setFirebaseConfirmation(null);
+        setIsUsingFirebase(false);
+        setGpsStatus(null);
+        setIsDetectingGps(false);
       } else {
         setFormData({
           patient_name: '',
@@ -113,6 +141,8 @@ export default function SOSModal({
           hospital_locality: '',
           contact_person: '',
           contact_phone: '',
+          latitude: 0.0,
+          longitude: 0.0,
           verification_slip: null,
         });
         setStep(1);
@@ -121,6 +151,10 @@ export default function SOSModal({
         setOtpCode('');
         setDebugOtp('');
         setOtpError('');
+        setFirebaseConfirmation(null);
+        setIsUsingFirebase(false);
+        setGpsStatus(null);
+        setIsDetectingGps(false);
       }
     }
   }, [isOpen, isEditMode, initialData, isAuthenticated, user]);
@@ -135,6 +169,8 @@ export default function SOSModal({
     }
     return () => clearInterval(timer);
   }, [resendTimer]);
+
+  const phoneValidation = useMemo(() => validateIndianPhone(formData.contact_phone), [formData.contact_phone]);
 
   if (!isOpen) return null;
 
@@ -153,23 +189,109 @@ export default function SOSModal({
   const handleAutofillLocation = () => {
     handleChange('hospital_name', 'Manipal Hospital (Old Airport Road)');
     handleChange('hospital_locality', 'Kodihalli, Bengaluru');
+    handleChange('latitude', 12.9592);
+    handleChange('longitude', 77.6534);
+    setGpsStatus({
+      success: true,
+      message: 'Demo coordinates set: 12.9592° N, 77.6534° E (Kodihalli, Bengaluru)'
+    });
+  };
+
+  // GPS Auto-Detection & Reverse Geocoding
+  const handleUseGPSLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus({ success: false, message: 'Geolocation is not supported by your browser.' });
+      return;
+    }
+
+    setIsDetectingGps(true);
+    setGpsStatus(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const latVal = parseFloat(latitude.toFixed(5));
+        const lngVal = parseFloat(longitude.toFixed(5));
+
+        handleChange('latitude', latVal);
+        handleChange('longitude', lngVal);
+
+        let detectedHospital = '';
+        let detectedLocality = '';
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=17&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            
+            detectedHospital = addr.hospital || addr.clinic || addr.healthcare || addr.amenity || '';
+            
+            const areaParts = [
+              addr.suburb || addr.neighbourhood || addr.residential || addr.road,
+              addr.city || addr.town || addr.municipality || addr.district,
+              addr.state
+            ].filter(Boolean);
+
+            detectedLocality = areaParts.join(', ');
+          }
+        } catch (fetchErr) {
+          console.warn('GPS reverse geocoding note:', fetchErr);
+        }
+
+        if (detectedHospital && !formData.hospital_name) {
+          handleChange('hospital_name', detectedHospital);
+        }
+        if (detectedLocality) {
+          handleChange('hospital_locality', detectedLocality);
+        }
+
+        setGpsStatus({
+          success: true,
+          message: `GPS Locked: ${latVal.toFixed(4)}° N, ${lngVal.toFixed(4)}° E${detectedLocality ? ` (${detectedLocality})` : ''}`
+        });
+        setIsDetectingGps(false);
+      },
+      (err) => {
+        setIsDetectingGps(false);
+        let msg = 'Unable to retrieve GPS coordinates.';
+        if (err.code === 1) msg = 'Location permission denied. Please allow location access in your browser.';
+        else if (err.code === 2) msg = 'Location unavailable. Please check your device GPS.';
+        else if (err.code === 3) msg = 'GPS request timed out. Please retry.';
+        setGpsStatus({ success: false, message: msg });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
   };
 
   // Send Phone OTP
   const handleSendOTP = async () => {
-    if (!formData.contact_phone || formData.contact_phone.trim().length < 7) {
-      setOtpError('Please enter a valid emergency contact phone number first.');
+    if (!phoneValidation.isValid) {
+      setOtpError(phoneValidation.message);
       return;
     }
     setOtpError('');
     setIsSendingOtp(true);
     try {
-      const res = await api.sendSOSOtp(formData.contact_phone.trim());
-      setOtpSent(true);
-      if (res?.data?.debug_otp) {
-        setDebugOtp(res.data.debug_otp);
+      if (isFirebaseConfigured()) {
+        const { confirmationResult } = await sendFirebasePhoneOtp(formData.contact_phone.trim(), 'recaptcha-container');
+        setFirebaseConfirmation(confirmationResult);
+        setIsUsingFirebase(true);
+        setOtpSent(true);
+        setDebugOtp('');
+        setResendTimer(30);
+      } else {
+        const res = await api.sendSOSOtp(phoneValidation.e164 || formData.contact_phone.trim());
+        setOtpSent(true);
+        setIsUsingFirebase(false);
+        if (res?.data?.debug_otp) {
+          setDebugOtp(res.data.debug_otp);
+        }
+        setResendTimer(30);
       }
-      setResendTimer(30);
     } catch (err) {
       setOtpError(err.message || 'Failed to dispatch verification code. Please retry.');
     } finally {
@@ -181,6 +303,11 @@ export default function SOSModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     setOtpError('');
+
+    if (!phoneValidation.isValid) {
+      setOtpError(`Emergency Phone: ${phoneValidation.message}`);
+      return;
+    }
 
     if (isEditMode) {
       // Execute Edit Update
@@ -196,6 +323,8 @@ export default function SOSModal({
           hospital_locality: formData.hospital_locality,
           contact_person: formData.contact_person,
           contact_phone: formData.contact_phone,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
         };
         await onUpdateSOS(initialData.id, updatePayload, initialData.edit_token);
         setIsSubmitting(false);
@@ -216,6 +345,17 @@ export default function SOSModal({
       if (!otpCode.trim()) {
         setOtpError('Please enter the 6-digit verification code.');
         return;
+      }
+
+      if (isUsingFirebase && firebaseConfirmation) {
+        setIsSubmitting(true);
+        try {
+          await confirmFirebasePhoneOtp(firebaseConfirmation, otpCode.trim());
+        } catch (fbErr) {
+          setIsSubmitting(false);
+          setOtpError(fbErr.message || 'Invalid SMS verification code. Please check and retry.');
+          return;
+        }
       }
     }
 
@@ -665,18 +805,69 @@ export default function SOSModal({
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-2xl bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-red-800 dark:text-red-300">
-                      <MapPin className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-                      <span>Hospital Location Details</span>
+                  {/* GPS Live Detection & Location Action Panel */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-red-50/80 via-slate-50 to-rose-50/50 dark:from-slate-800/90 dark:via-slate-800/60 dark:to-slate-800/90 border border-red-200/80 dark:border-slate-700 space-y-2.5 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <MapPin className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                        <span>Hospital Location & GPS Coordinates</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Live GPS Button */}
+                        <button
+                          type="button"
+                          onClick={handleUseGPSLocation}
+                          disabled={isDetectingGps}
+                          className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isDetectingGps ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Detecting GPS...</span>
+                            </>
+                          ) : (
+                            <>
+                              <LocateFixed className="w-3.5 h-3.5" />
+                              <span>Use Live GPS Location</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Quick Fill Demo Hospital */}
+                        <button
+                          type="button"
+                          onClick={handleAutofillLocation}
+                          className="px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 shadow-xs transition-all cursor-pointer"
+                        >
+                          Demo Hospital
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleAutofillLocation}
-                      className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-slate-800 text-red-700 dark:text-red-300 rounded-lg border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-slate-700 shadow-sm self-start sm:self-auto"
-                    >
-                      Quick Fill Demo Hospital
-                    </button>
+
+                    {/* GPS Status Alert */}
+                    {gpsStatus && (
+                      <div className={`p-2 rounded-xl text-xs flex items-center gap-2 font-medium transition-all ${
+                        gpsStatus.success
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                          : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/40'
+                      }`}>
+                        {gpsStatus.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        )}
+                        <span>{gpsStatus.message}</span>
+                      </div>
+                    )}
+
+                    {/* Coordinates Badge */}
+                    {formData.latitude !== 0.0 && formData.longitude !== 0.0 && (
+                      <div className="flex items-center gap-2 text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-400">
+                        <Navigation2 className="w-3.5 h-3.5 text-red-500 rotate-45 shrink-0" />
+                        <span>GPS Coordinates: <strong>{formData.latitude.toFixed(4)}° N, {formData.longitude.toFixed(4)}° E</strong> (Auto-matched with nearby donors)</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -740,8 +931,33 @@ export default function SOSModal({
                           if (!isEditMode) setOtpSent(false); // Reset OTP if phone changes
                         }}
                         placeholder="e.g. +91 98450 12345"
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-red-600/20 focus:border-red-600 text-base sm:text-sm font-medium font-mono"
+                        className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-red-600/20 text-base sm:text-sm font-medium font-mono transition-colors ${
+                          !formData.contact_phone.trim()
+                            ? 'border-slate-200 dark:border-slate-700'
+                            : phoneValidation.isValid
+                            ? 'border-emerald-500 dark:border-emerald-500 focus:border-emerald-500'
+                            : 'border-amber-500 dark:border-amber-500 focus:border-amber-500'
+                        }`}
                       />
+                      {formData.contact_phone.trim() && (
+                        <div className={`mt-1.5 text-xs flex items-center gap-1.5 transition-all ${
+                          phoneValidation.isValid
+                            ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                            : 'text-amber-600 dark:text-amber-400 font-medium'
+                        }`}>
+                          {phoneValidation.isValid ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>Valid Indian Mobile ({phoneValidation.formatted})</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>{phoneValidation.message}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -784,8 +1000,8 @@ export default function SOSModal({
                           <button
                             type="button"
                             onClick={handleSendOTP}
-                            disabled={isSendingOtp || !formData.contact_phone}
-                            className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all disabled:opacity-50"
+                            disabled={isSendingOtp || !phoneValidation.isValid}
+                            className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isSendingOtp ? 'Sending Code...' : 'Send Verification Code'}
                           </button>
@@ -812,20 +1028,58 @@ export default function SOSModal({
                             </button>
                           </div>
 
-                          {/* Quick Demo Code helper for testing */}
-                          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50/60 dark:bg-red-950/40 border border-red-200/60 dark:border-red-900/40 text-xs">
-                            <KeyRound className="w-3.5 h-3.5 text-red-600 shrink-0" />
-                            <span className="text-slate-600 dark:text-slate-300">
-                              Demo Code: <strong>{debugOtp || '123456'}</strong>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setOtpCode(debugOtp || '123456')}
-                              className="ml-auto px-2 py-0.5 text-[11px] font-bold bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 rounded border border-red-200 hover:bg-red-50"
-                            >
-                              Auto-fill Code
-                            </button>
-                          </div>
+                          {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
+                          <div id="recaptcha-container"></div>
+
+                          {/* Real-Time Firebase Gateway Banner */}
+                          {isUsingFirebase && (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300">
+                                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span>Real-time SMS dispatched via Google Firebase. (Check SMS or Truecaller / Spam folder).</span>
+                              </div>
+                              <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
+                                <span>Carrier SMS delayed by telecom?</span>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setIsSendingOtp(true);
+                                    try {
+                                      const res = await api.sendSOSOtp(phoneValidation.e164 || formData.contact_phone.trim());
+                                      setIsUsingFirebase(false);
+                                      if (res?.data?.debug_otp) {
+                                        setDebugOtp(res.data.debug_otp);
+                                      }
+                                    } catch (err) {
+                                      setOtpError(err.message);
+                                    } finally {
+                                      setIsSendingOtp(false);
+                                    }
+                                  }}
+                                  className="text-red-600 dark:text-red-400 hover:underline font-bold"
+                                >
+                                  Switch to Instant Simulator Code
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Quick Demo Code helper for testing (only when in dev simulator) */}
+                          {!isUsingFirebase && debugOtp && (
+                            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 text-xs">
+                              <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="text-slate-600 dark:text-slate-300">
+                                Simulator Code: <strong>{debugOtp}</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setOtpCode(debugOtp)}
+                                className="ml-auto px-2 py-0.5 text-[11px] font-bold bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 rounded border border-amber-200 hover:bg-amber-50"
+                              >
+                                Auto-fill Code
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
 

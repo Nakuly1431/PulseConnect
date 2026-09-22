@@ -27,7 +27,14 @@ wheels/
 backend/uploads/*
 !backend/uploads/.gitkeep
 
+# Environment variables
+.env
+.env*.local
+*.env
+!.env.example
+
 # Node
 node_modules/
 frontend/dist/
+dist/
 *.log

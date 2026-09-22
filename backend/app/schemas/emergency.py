@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from app.core.phone import standardize_indian_phone
 
 class EmergencyCreate(BaseModel):
     patient_name: str
@@ -14,6 +15,11 @@ class EmergencyCreate(BaseModel):
     urgency_level: str = "Immediate"  # Immediate, Within 6 Hours, Within 24 Hours
     contact_person: str
     contact_phone: str
+
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_contact_phone(cls, v: str) -> str:
+        return standardize_indian_phone(v)
 
 class EmergencyResponse(BaseModel):
     id: int
@@ -52,8 +58,20 @@ class EmergencyUpdate(BaseModel):
     contact_person: Optional[str] = None
     contact_phone: Optional[str] = None
 
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_contact_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip() != "":
+            return standardize_indian_phone(v)
+        return v
+
 class SOSSendOTPRequest(BaseModel):
     phone_number: str
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_otp_phone(cls, v: str) -> str:
+        return standardize_indian_phone(v)
 
 class SOSSendOTPResponse(BaseModel):
     status: str

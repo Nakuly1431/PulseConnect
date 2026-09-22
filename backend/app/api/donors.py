@@ -56,7 +56,7 @@ def search_donors(
             "id": donor.id,
             "full_name": donor.full_name,
             "email": donor.email,
-            "phone_number": donor.phone_number,
+            "phone_number": mask_phone_number(donor.phone_number),  # Always masked in search results
             "masked_phone": mask_phone_number(donor.phone_number),
             "blood_group": donor.blood_group,
             "latitude": donor.latitude or 0.0,
@@ -164,7 +164,7 @@ def request_blood_from_donor(
         f"Direct Request: {units_needed} unit(s) {blood_group} ({component_type}) "
         f"for {patient_name or 'Patient'} at {hospital_name or 'Hospital'} "
         f"({hospital_locality or 'Locality'}). Requester: {requester_name or 'Attendant'} "
-        f"(Phone: {requester_phone or 'N/A'}{' [Phone Verified ✓]' if otp_code else ''}). Urgency: {urgency}. Note: {custom_notes}"
+        f"(Phone: {requester_phone or 'N/A'}{' [Phone Verified ✓]' if otp_code else ''}). Urgency: {urgency}. Note: {(req_data.notes or '') if req_data else ''}"
     )
 
     new_log = DonationLog(

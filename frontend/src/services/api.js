@@ -164,11 +164,10 @@ export const api = {
     }
     try {
       const response = await apiClient.get('/donors/search', { params: cleanParams });
-      if (Array.isArray(response.data) && response.data.length > 0) {
+      if (Array.isArray(response.data)) {
         return { data: response.data, isLive: true };
       }
-      // If server is live but has 0 donors in DB, fallback to demo Odisha donors
-      return { data: filterDonors(MOCK_DONORS, params), isLive: true };
+      return { data: [], isLive: true };
     } catch (error) {
       console.warn('Donor search request error, using demo Odisha donors:', error.message);
       return { data: filterDonors(MOCK_DONORS, params), isLive: false };
@@ -197,14 +196,15 @@ export const api = {
       if (error.response?.data?.detail) {
         throw new Error(formatErrorDetail(error.response.data.detail));
       }
-      // If server offline, simulate mock success for demo
+      // If server offline, simulate mock success for demo (but warn user)
       return {
         data: {
           id: Date.now(),
           donor_id: donorId,
           status: 'Requested',
           notes: reqData.notes || 'Emergency direct blood request',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          _offline_mode: true
         },
         isLive: false
       };

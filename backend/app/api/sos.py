@@ -28,6 +28,7 @@ from app.core.compatibility import (
 from app.models.notification import Notification
 from app.api.auth import get_current_user
 from app.services.sms import send_realtime_sms_otp
+from app.core.phone import validate_indian_phone, standardize_indian_phone
 
 logger = logging.getLogger("pulseconnect.notifications")
 
@@ -36,7 +37,10 @@ _SOS_OTP_STORE = {}
 OTP_TTL_SECONDS = 600  # 10 minutes
 
 def clean_phone(phone: str) -> str:
-    return "".join(c for c in phone if c.isdigit() or c == "+").strip()
+    try:
+        return standardize_indian_phone(phone)
+    except ValueError:
+        return "".join(c for c in phone if c.isdigit() or c == "+").strip()
 
 def send_external_notification(donor: User, emergency: EmergencyRequest, message: str):
     """
@@ -77,12 +81,14 @@ def send_sos_otp(payload: SOSSendOTPRequest):
     Sends a 6-digit verification code to the requester's emergency contact phone number.
     Verifies phone legitimacy without requiring account creation.
     """
-    cleaned_phone = clean_phone(payload.phone_number)
-    if len(cleaned_phone) < 7:
+    is_valid, standardized_phone, err_msg = validate_indian_phone(payload.phone_number)
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please provide a valid emergency phone number."
+            detail=f"Please provide a valid Indian emergency phone number: {err_msg}"
         )
+    
+    cleaned_phone = standardized_phone
     
     otp = f"{random.randint(100000, 999999)}"
     _SOS_OTP_STORE[cleaned_phone] = {
@@ -100,11 +106,17 @@ def send_sos_otp(payload: SOSSendOTPRequest):
     elif sms_res.get("provider") == "Twilio":
         provider_msg = f"Real-time SMS OTP dispatched to {cleaned_phone} via Twilio"
 
+    # Only expose debug_otp in development (when no real SMS provider is configured)
+    is_dev_mode = not (
+        (getattr(settings, 'FAST2SMS_API_KEY', '') or '').strip() or
+        (getattr(settings, 'TWILIO_ACCOUNT_SID', '') or '').strip()
+    )
+
     return SOSSendOTPResponse(
         status="success",
         message=provider_msg,
         phone_number=cleaned_phone,
-        debug_otp=otp  # Returned for zero-friction local/eval testing
+        debug_otp=otp if is_dev_mode else None  # Hidden in production when real SMS is active
     )
 
 @router.post("/create", response_model=EmergencyResponse, status_code=status.HTTP_201_CREATED)
@@ -149,8 +161,17 @@ async def create_sos_emergency(
     elif (isinstance(posted_by_verified_hospital, bool) and posted_by_verified_hospital) and current_user and hasattr(current_user, "role") and current_user.role == "hospital" and getattr(current_user, "is_verified", False):
         is_verified_hosp = True
 
+    # Validate Indian contact phone format
+    is_valid_phone, standardized_contact_phone, phone_err = validate_indian_phone(contact_phone)
+    if not is_valid_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Please provide a valid Indian emergency contact phone number: {phone_err}"
+        )
+    contact_phone = standardized_contact_phone
+
     # Validate phone OTP for guest requesters if OTP was requested or supplied
-    cleaned_phone = clean_phone(contact_phone)
+    cleaned_phone = contact_phone
     is_auth_user = bool(current_user and hasattr(current_user, "id"))
     if not is_verified_hosp and not is_auth_user:
         if isinstance(otp_code, str) and otp_code.strip():
@@ -163,10 +184,17 @@ async def create_sos_emergency(
                 )
             _SOS_OTP_STORE.pop(cleaned_phone, None)
         elif cleaned_phone in _SOS_OTP_STORE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Phone verification code is required for this number. Please enter the OTP."
-            )
+            # Clear expired entries silently — don't block the user for a stale old session OTP
+            stored = _SOS_OTP_STORE.get(cleaned_phone)
+            if stored and stored["expires_at"] < time.time():
+                # Expired OTP: clean it up and allow through
+                _SOS_OTP_STORE.pop(cleaned_phone, None)
+            else:
+                # Genuinely active OTP exists but user didn't provide it
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A phone verification code was sent to this number. Please enter the OTP to proceed."
+                )
 
     lat_val = 0.0
     if isinstance(latitude, (int, float)):
