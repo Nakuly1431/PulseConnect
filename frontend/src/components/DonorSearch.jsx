@@ -29,24 +29,118 @@ export default function DonorSearch({
     setIsLocating(true);
     setLocationStatus('Detecting GPS...');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        let detectedCity = '';
+        let detectedState = '';
+
+        try {
+          // OpenStreetMap Nominatim reverse geocoding
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            detectedState = addr.state || '';
+            detectedCity = addr.city || addr.town || addr.municipality || addr.district || addr.county || addr.suburb || '';
+          }
+        } catch (fetchErr) {
+          console.warn('Network reverse geocoding notice:', fetchErr);
+        }
+
+        // Match detectedState and detectedCity against INDIA_STATES_DATA
+        let matched = null;
+        let matchedCityName = '';
+
+        if (detectedState) {
+          matched = INDIA_STATES_DATA.find(s => 
+            s.state.toLowerCase() === detectedState.toLowerCase() ||
+            detectedState.toLowerCase().includes(s.state.toLowerCase()) ||
+            s.state.toLowerCase().includes(detectedState.toLowerCase())
+          );
+        }
+
+        if (matched && detectedCity) {
+          const directCity = matched.cities.find(c => 
+            c.name.toLowerCase() === detectedCity.toLowerCase() ||
+            detectedCity.toLowerCase().includes(c.name.toLowerCase()) ||
+            c.name.toLowerCase().includes(detectedCity.toLowerCase())
+          );
+          if (directCity) {
+            matchedCityName = directCity.name;
+          } else {
+            // Pick closest city in matched state
+            let bestCity = matched.cities[0]?.name || '';
+            let minDist = Infinity;
+            matched.cities.forEach(c => {
+              const d = Math.hypot(c.lat - latitude, c.lng - longitude);
+              if (d < minDist) {
+                minDist = d;
+                bestCity = c.name;
+              }
+            });
+            matchedCityName = bestCity;
+          }
+        }
+
+        // Geometric fallback: if no state matched or network unavailable, find closest Indian state & city by distance
+        if (!matched || !matchedCityName) {
+          let closestStateObj = null;
+          let closestCityObj = null;
+          let minDistance = Infinity;
+
+          INDIA_STATES_DATA.forEach(s => {
+            s.cities.forEach(c => {
+              const d = Math.hypot(c.lat - latitude, c.lng - longitude);
+              if (d < minDistance) {
+                minDistance = d;
+                closestStateObj = s;
+                closestCityObj = c;
+              }
+            });
+          });
+
+          if (closestStateObj && closestCityObj) {
+            matched = closestStateObj;
+            matchedCityName = closestCityObj.name;
+          }
+        }
+
         setIsLocating(false);
-        setLocationStatus('GPS Locked');
+        const stateName = matched ? matched.state : (detectedState || 'India');
+        const finalCity = matchedCityName || detectedCity || (matched ? matched.cities[0]?.name : 'Bhubaneswar');
+
+        setLocationStatus(`GPS: ${finalCity}`);
+
+        // 1. Auto-fill the search query so State & City dropdowns and donor list instantly populate
+        if (onChangeSearchQuery) {
+          onChangeSearchQuery(finalCity);
+        }
+
+        // 2. Set searchCenter to the precise GPS coordinates and friendly city/state name
         if (onChangeSearchCenter) {
           onChangeSearchCenter({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            name: 'My GPS Location'
+            lat: latitude,
+            lng: longitude,
+            name: `${finalCity}, ${stateName}`
           });
         }
-        setTimeout(() => setLocationStatus(''), 3000);
+
+        // 3. Set suitable emergency radius
+        if (onChangeRadiusKm && radiusKm < 25) {
+          onChangeRadiusKm(25);
+        }
+
+        setTimeout(() => setLocationStatus(''), 4000);
       },
       (err) => {
         setIsLocating(false);
         setLocationStatus('GPS unavailable');
         setTimeout(() => setLocationStatus(''), 3000);
       },
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
