@@ -46,7 +46,7 @@ def serialize_user(user: User) -> UserResponse:
     return res
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, response: Response, db: Session = Depends(get_db)):
+def register_user(user_in: UserCreate, response: Response, request: Request, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_in.email.lower()).first()
     if existing:
         raise HTTPException(
@@ -58,19 +58,19 @@ def register_user(user_in: UserCreate, response: Response, db: Session = Depends
     is_verified_val = False if user_role == "hospital" else True
 
     new_user = User(
-        full_name=user_in.full_name,
         email=user_in.email.lower(),
         password_hash=hash_password(user_in.password),
+        full_name=user_in.full_name,
+        blood_group=user_in.blood_group,
         phone_number=user_in.phone_number,
-        blood_group=user_in.blood_group.upper(),
-        latitude=user_in.latitude or 0.0,
-        longitude=user_in.longitude or 0.0,
         locality=user_in.locality,
         city=user_in.city,
         state=user_in.state,
+        latitude=user_in.latitude,
+        longitude=user_in.longitude,
         role=user_role,
-        hospital_name=user_in.hospital_name.strip() if user_in.hospital_name else None,
-        license_number=user_in.license_number.strip() if user_in.license_number else None,
+        hospital_name=user_in.hospital_name,
+        license_number=user_in.license_number,
         is_available=True,
         is_verified=is_verified_val,
         total_donations=0
@@ -81,20 +81,21 @@ def register_user(user_in: UserCreate, response: Response, db: Session = Depends
 
     token = create_access_token({"sub": str(new_user.id), "email": new_user.email})
     
-    # Store session as JWT in an httpOnly cookie
+    # Store session as JWT in an httpOnly cookie (supports cross-site on HTTPS)
     max_age_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    is_prod = not any(local in str(request.base_url) for local in ["localhost", "127.0.0.1"])
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
         max_age=max_age_seconds,
-        samesite="lax",
-        secure=False
+        samesite="none" if is_prod else "lax",
+        secure=is_prod
     )
     return Token(access_token=token, user=serialize_user(new_user))
 
 @router.post("/login", response_model=Token)
-def login_user(login_in: UserLogin, response: Response, db: Session = Depends(get_db)):
+def login_user(login_in: UserLogin, response: Response, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_in.email.lower()).first()
     if not user or not verify_password(login_in.password, user.password_hash):
         # Privacy-preserving error message: does not reveal whether the email exists
@@ -105,21 +106,23 @@ def login_user(login_in: UserLogin, response: Response, db: Session = Depends(ge
     
     token = create_access_token({"sub": str(user.id), "email": user.email})
     
-    # Store session as JWT in an httpOnly cookie
+    # Store session as JWT in an httpOnly cookie (supports cross-site on HTTPS)
     max_age_seconds = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    is_prod = not any(local in str(request.base_url) for local in ["localhost", "127.0.0.1"])
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
         max_age=max_age_seconds,
-        samesite="lax",
-        secure=False
+        samesite="none" if is_prod else "lax",
+        secure=is_prod
     )
     return Token(access_token=token, user=serialize_user(user))
 
 @router.post("/logout")
-def logout_user(response: Response):
-    response.delete_cookie(key="access_token", samesite="lax")
+def logout_user(response: Response, request: Request):
+    is_prod = not any(local in str(request.base_url) for local in ["localhost", "127.0.0.1"])
+    response.delete_cookie(key="access_token", samesite="none" if is_prod else "lax", secure=is_prod)
     return {"status": "success", "message": "Successfully logged out"}
 
 @router.get("/me", response_model=UserResponse)
