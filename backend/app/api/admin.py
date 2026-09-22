@@ -144,6 +144,71 @@ def verify_user(
 
     return serialize_user(user)
 
+
+@router.patch("/users/{user_id}/role", response_model=UserResponse)
+def update_user_role(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Enables administrators to assign or update any user's role:
+    'admin', 'donor_acceptor', or 'hospital'.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User #{user_id} not found"
+        )
+
+    new_role = (payload.get("role") or "").strip().lower()
+    if new_role not in ["admin", "donor_acceptor", "hospital"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role. Must be 'admin', 'donor_acceptor', or 'hospital'."
+        )
+
+    # Prevent an admin from removing their own admin privilege to avoid accidental lockout
+    if admin.id == user_id and new_role != "admin":
+        other_admins = db.query(User).filter(User.role == "admin", User.id != admin.id).count()
+        if other_admins == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the only remaining administrator account."
+            )
+
+    user.role = new_role
+    if new_role == "admin":
+        user.is_verified = True  # Admins are automatically verified
+
+    db.commit()
+    db.refresh(user)
+    return serialize_user(user)
+
+
+@router.patch("/users/{user_id}/make-admin", response_model=UserResponse)
+def make_user_admin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    """
+    Direct shortcut to grant administrator privileges to any user.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User #{user_id} not found"
+        )
+    user.role = "admin"
+    user.is_verified = True
+    db.commit()
+    db.refresh(user)
+    return serialize_user(user)
+
 @router.get("/requests", response_model=list[EmergencyResponse])
 def get_all_requests(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status ('Active', 'Fulfilled', etc.) or 'All'"),

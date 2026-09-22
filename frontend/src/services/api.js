@@ -469,6 +469,32 @@ export const api = {
     }
   },
 
+  // Admin: Update User Role (e.g. Make Admin, or switch between admin / donor_acceptor / hospital)
+  async updateUserRole(userId, newRole) {
+    try {
+      const response = await apiClient.patch(`/admin/users/${userId}/role`, { role: newRole });
+      return { data: response.data, isLive: true };
+    } catch (error) {
+      if (error.response?.data?.detail) {
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      return { data: { id: userId, role: newRole, is_verified: true }, isLive: false };
+    }
+  },
+
+  // Admin: Make User Admin Shortcut
+  async makeUserAdmin(userId) {
+    try {
+      const response = await apiClient.patch(`/admin/users/${userId}/make-admin`);
+      return { data: response.data, isLive: true };
+    } catch (error) {
+      if (error.response?.data?.detail) {
+        throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      return { data: { id: userId, role: 'admin', is_verified: true }, isLive: false };
+    }
+  },
+
   // Admin: Fetch Pending Verifications
   async fetchPendingVerifications() {
     try {

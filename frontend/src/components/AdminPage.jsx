@@ -25,7 +25,8 @@ import {
   X,
   Users,
   UserCheck,
-  Droplet
+  Droplet,
+  Crown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { formatTimeAgo } from '../utils/bloodCompatibility';
@@ -41,6 +42,8 @@ export default function AdminPage({ onNavigateBack, addToast }) {
   const [userBloodFilter, setUserBloodFilter] = useState('All');
   const [isDeletingUser, setIsDeletingUser] = useState(null);
   const [confirmDeleteUserId, setConfirmDeleteUserId] = useState(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(null);
+  const [roleMenuOpenId, setRoleMenuOpenId] = useState(null);
 
   // 1. Pending Verifications State
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -113,6 +116,23 @@ export default function AdminPage({ onNavigateBack, addToast }) {
       if (addToast) addToast(err.message || 'Failed to delete user', 'error');
     } finally {
       setIsDeletingUser(null);
+    }
+  };
+
+  // Handle Make Admin / Change Role
+  const handleUpdateRole = async (userId, userName, newRole) => {
+    setIsUpdatingRole(userId);
+    try {
+      await api.updateUserRole(userId, newRole);
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole, is_verified: true } : u));
+      setPendingUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole, is_verified: true } : u));
+      setRoleMenuOpenId(null);
+      const roleLabel = newRole === 'admin' ? 'Administrator' : newRole === 'hospital' ? 'Hospital' : 'Donor / Acceptor';
+      if (addToast) addToast(`🎉 ${userName} is now an ${roleLabel}!`, 'success');
+    } catch (err) {
+      if (addToast) addToast(err.message || 'Failed to update user role', 'error');
+    } finally {
+      setIsUpdatingRole(null);
     }
   };
 
@@ -451,38 +471,90 @@ export default function AdminPage({ onNavigateBack, addToast }) {
                     </div>
                   </div>
 
-                  {/* Card Footer: Moderation Action */}
+                  {/* Card Footer: Role Management & Moderation Actions */}
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                     <span className="text-[11px] text-slate-400 dark:text-slate-500">
                       Joined {formatTimeAgo(user.created_at)}
                     </span>
 
-                    {confirmDeleteUserId === user.id ? (
-                      <div className="inline-flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
+                      {/* Make Admin / Role Switcher Button */}
+                      {user.role !== 'admin' ? (
                         <button
-                          onClick={() => handleDeleteUser(user.id, user.full_name)}
-                          disabled={isDeletingUser === user.id}
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-red-600 text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm"
+                          onClick={() => handleUpdateRole(user.id, user.full_name, 'admin')}
+                          disabled={isUpdatingRole === user.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900 border border-purple-200 dark:border-purple-800/60 active:scale-95 transition-all shadow-2xs"
+                          title={`Promote ${user.full_name} to Administrator`}
                         >
-                          {isDeletingUser === user.id ? 'Deleting...' : 'Confirm'}
+                          {isUpdatingRole === user.id ? (
+                            <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />
+                          ) : (
+                            <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          )}
+                          <span>Make Admin</span>
                         </button>
+                      ) : (
+                        <div className="relative">
+                          <button
+                            onClick={() => setRoleMenuOpenId(roleMenuOpenId === user.id ? null : user.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 hover:bg-purple-100 transition-colors"
+                            title="Admin Options"
+                          >
+                            <Crown className="w-3 h-3 text-amber-500 fill-amber-500" />
+                            <span>Admin</span>
+                            <span className="text-[9px] ml-0.5">▼</span>
+                          </button>
+                          {roleMenuOpenId === user.id && (
+                            <div className="absolute right-0 bottom-full mb-1 w-44 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl z-20 py-1 text-xs">
+                              <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Demote / Switch
+                              </div>
+                              <button
+                                onClick={() => handleUpdateRole(user.id, user.full_name, 'donor_acceptor')}
+                                className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium"
+                              >
+                                <Users className="w-3 h-3 text-emerald-500" />
+                                <span>Demote to Donor</span>
+                              </button>
+                              <button
+                                onClick={() => handleUpdateRole(user.id, user.full_name, 'hospital')}
+                                className="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium"
+                              >
+                                <Building className="w-3 h-3 text-blue-500" />
+                                <span>Switch to Hospital</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Remove User Action */}
+                      {confirmDeleteUserId === user.id ? (
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => handleDeleteUser(user.id, user.full_name)}
+                            disabled={isDeletingUser === user.id}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-red-600 text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm"
+                          >
+                            {isDeletingUser === user.id ? 'Deleting...' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteUserId(null)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
                         <button
-                          onClick={() => setConfirmDeleteUserId(null)}
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 transition-all"
+                          onClick={() => setConfirmDeleteUserId(user.id)}
+                          className="inline-flex items-center gap-1 p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
+                          title="Remove user account"
                         >
-                          Cancel
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDeleteUserId(user.id)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
-                        title="Remove user account"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove</span>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -576,19 +648,35 @@ export default function AdminPage({ onNavigateBack, addToast }) {
                     </div>
                   </div>
 
-                  {/* Verification Action */}
-                  <button
-                    onClick={() => handleVerifyUser(user.id, user.full_name)}
-                    disabled={isVerifying === user.id}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50"
-                  >
-                    {isVerifying === user.id ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    )}
-                    <span>Verify Account</span>
-                  </button>
+                  {/* Verification Actions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleVerifyUser(user.id, user.full_name)}
+                      disabled={isVerifying === user.id}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50"
+                    >
+                      {isVerifying === user.id ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                      <span>Verify</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleUpdateRole(user.id, user.full_name, 'admin')}
+                      disabled={isUpdatingRole === user.id}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:scale-95 transition-all shadow-sm shadow-purple-600/20 disabled:opacity-50"
+                      title="Verify and grant Administrator privileges"
+                    >
+                      {isUpdatingRole === user.id ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Crown className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                      )}
+                      <span>Make Admin</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
