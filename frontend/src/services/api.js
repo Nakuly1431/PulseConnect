@@ -1,15 +1,25 @@
 import axios from 'axios';
 import { MOCK_DONORS, MOCK_EMERGENCIES, MOCK_STATS, MOCK_TRACKER_DATA } from './mockData';
 
-let rawApiUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api').trim().replace(/\/+$/, '');
-if (rawApiUrl.includes('localhost:8000')) {
+const isBrowser = typeof window !== 'undefined';
+const isLocalhost = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// When deployed on Vercel or any public domain, default automatically to the live Render backend
+const defaultApiUrl = isLocalhost 
+  ? 'http://127.0.0.1:8000/api' 
+  : 'https://pulseconnect-api-8ygq.onrender.com/api';
+
+let rawApiUrl = (import.meta.env.VITE_API_BASE_URL || defaultApiUrl).trim().replace(/\/+$/, '');
+if (rawApiUrl.includes('localhost:8000') && !isLocalhost) {
+  rawApiUrl = 'https://pulseconnect-api-8ygq.onrender.com/api';
+} else if (rawApiUrl.includes('localhost:8000')) {
   rawApiUrl = rawApiUrl.replace('localhost:8000', '127.0.0.1:8000');
 }
 const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 45000, // 45s to accommodate Render free-tier cold-starts
   withCredentials: true, // Automatically sends and receives httpOnly cookies across CORS
 });
 
