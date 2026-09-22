@@ -86,6 +86,43 @@ const filterDonors = (list, params = {}) => {
 };
 
 
+const MOCK_DEMO_USERS = {
+  'subrat.jena@demo.pulseconnect.org': {
+    id: 1,
+    full_name: "Subrat Kumar Jena",
+    email: "subrat.jena@demo.pulseconnect.org",
+    phone_number: "+91 98610 23411",
+    masked_phone: "+91 986•• •••11",
+    blood_group: "O+",
+    locality: "Patia, Bhubaneswar",
+    city: "Bhubaneswar",
+    state: "Odisha",
+    latitude: 20.3551,
+    longitude: 85.8189,
+    is_available: true,
+    is_verified: true,
+    role: "donor_acceptor",
+    total_donations: 4
+  },
+  'admin@pulseconnect.org': {
+    id: 999,
+    full_name: "PulseConnect Administrator",
+    email: "admin@pulseconnect.org",
+    phone_number: "+91 98000 00000",
+    masked_phone: "+91 980•• •••00",
+    blood_group: "O+",
+    locality: "Secretariat, Bhubaneswar",
+    city: "Bhubaneswar",
+    state: "Odisha",
+    latitude: 20.2961,
+    longitude: 85.8245,
+    is_available: true,
+    is_verified: true,
+    role: "admin",
+    total_donations: 0
+  }
+};
+
 export const api = {
   // Authentication: Login
   async login(credentials) {
@@ -93,14 +130,54 @@ export const api = {
       const response = await apiClient.post('/auth/login', credentials);
       if (response.data?.access_token) {
         localStorage.setItem('pulse_token', response.data.access_token);
+        localStorage.removeItem('pulse_demo_user');
       }
       return { data: response.data, isLive: true };
     } catch (error) {
       if (error.response?.data?.detail) {
         throw new Error(formatErrorDetail(error.response.data.detail));
       }
+      // If backend is offline or unreachable from Vercel (no cloud API deployed yet):
       if (!error.response) {
-        throw new Error('Unable to connect to the backend server. Please verify your backend API URL and ensure the server is online.');
+        const emailLower = (credentials.email || '').toLowerCase().trim();
+        const storedUser = localStorage.getItem('pulse_demo_user');
+        const parsedStored = storedUser ? JSON.parse(storedUser) : null;
+
+        let demoUser = null;
+        if (MOCK_DEMO_USERS[emailLower]) {
+          demoUser = MOCK_DEMO_USERS[emailLower];
+        } else if (parsedStored && parsedStored.email === emailLower) {
+          demoUser = parsedStored;
+        } else if (emailLower.endsWith('@demo.pulseconnect.org')) {
+          const namePart = emailLower.split('@')[0].replace(/\./g, ' ');
+          demoUser = {
+            id: 101,
+            full_name: namePart.charAt(0).toUpperCase() + namePart.slice(1),
+            email: emailLower,
+            phone_number: "+91 98610 00000",
+            masked_phone: "+91 986•• •••00",
+            blood_group: "O+",
+            locality: "Bhubaneswar",
+            city: "Bhubaneswar",
+            state: "Odisha",
+            latitude: 20.2961,
+            longitude: 85.8245,
+            is_available: true,
+            is_verified: true,
+            role: "donor_acceptor",
+            total_donations: 1
+          };
+        }
+
+        if (demoUser) {
+          localStorage.setItem('pulse_token', 'demo-token-active');
+          localStorage.setItem('pulse_demo_user', JSON.stringify(demoUser));
+          return { data: { access_token: 'demo-token-active', user: demoUser }, isLive: false };
+        }
+
+        throw new Error(
+          'Backend server is offline or unreachable. For demo testing on Vercel, sign in with:\n• Demo Donor: subrat.jena@demo.pulseconnect.org\n• Admin: admin@pulseconnect.org\n(or register a new account)'
+        );
       }
       throw new Error('Invalid email or password');
     }
@@ -112,6 +189,7 @@ export const api = {
       const response = await apiClient.post('/auth/register', userData);
       if (response.data?.access_token) {
         localStorage.setItem('pulse_token', response.data.access_token);
+        localStorage.removeItem('pulse_demo_user');
       }
       return { data: response.data, isLive: true };
     } catch (error) {
@@ -119,9 +197,32 @@ export const api = {
         throw new Error(formatErrorDetail(error.response.data.detail));
       }
       if (!error.response) {
-        throw new Error('Unable to connect to the backend server. Please verify your backend API URL and ensure the server is online.');
+        // Offline / Vercel demo fallback
+        const newUser = {
+          id: Date.now(),
+          full_name: userData.full_name,
+          email: userData.email.toLowerCase().trim(),
+          phone_number: userData.phone_number,
+          masked_phone: userData.phone_number?.replace(/(\+?\d{2,3})\s*(\d{3})\d{4}(\d{2})/, '$1 $2•• •••$3') || '+91 9•••• •••00',
+          blood_group: userData.blood_group,
+          locality: userData.locality,
+          city: userData.city,
+          state: userData.state,
+          latitude: userData.latitude || 20.2961,
+          longitude: userData.longitude || 85.8245,
+          is_available: true,
+          is_verified: true,
+          role: userData.role || 'donor_acceptor',
+          hospital_name: userData.hospital_name || null,
+          license_number: userData.license_number || null,
+          total_donations: 0,
+          created_at: new Date().toISOString()
+        };
+        localStorage.setItem('pulse_token', 'demo-token-active');
+        localStorage.setItem('pulse_demo_user', JSON.stringify(newUser));
+        return { data: { access_token: 'demo-token-active', user: newUser }, isLive: false };
       }
-      throw new Error(error.response?.data?.message || error.response?.statusText || 'Registration failed. Please verify your connection and details, then try again.');
+      throw new Error(error.response?.data?.message || error.response?.statusText || 'Registration failed.');
     }
   },
 
@@ -133,6 +234,7 @@ export const api = {
       // ignore
     } finally {
       localStorage.removeItem('pulse_token');
+      localStorage.removeItem('pulse_demo_user');
     }
   },
 
@@ -140,8 +242,17 @@ export const api = {
   async getMe() {
     try {
       const response = await apiClient.get('/auth/me');
+      localStorage.removeItem('pulse_demo_user');
       return { data: response.data, isLive: true };
     } catch {
+      const stored = localStorage.getItem('pulse_demo_user');
+      if (stored) {
+        try {
+          return { data: JSON.parse(stored), isLive: false };
+        } catch {
+          // ignore
+        }
+      }
       return { data: null, isLive: false };
     }
   },
@@ -154,6 +265,12 @@ export const api = {
     } catch (error) {
       if (error.response?.data?.detail) {
         throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      const stored = localStorage.getItem('pulse_demo_user');
+      if (stored) {
+        const u = { ...JSON.parse(stored), ...profileData };
+        localStorage.setItem('pulse_demo_user', JSON.stringify(u));
+        return { data: u, isLive: false };
       }
       throw new Error('Failed to update user profile. Please check your data.');
     }
@@ -185,6 +302,13 @@ export const api = {
     } catch (error) {
       if (error.response?.data?.detail) {
         throw new Error(formatErrorDetail(error.response.data.detail));
+      }
+      const stored = localStorage.getItem('pulse_demo_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        u.is_available = is_available !== null ? is_available : !u.is_available;
+        localStorage.setItem('pulse_demo_user', JSON.stringify(u));
+        return { data: { is_available: u.is_available, message: `Availability updated to ${u.is_available}` }, isLive: false };
       }
       throw new Error(error.message || 'Failed to toggle availability');
     }
@@ -312,48 +436,87 @@ export const api = {
 
   // Admin: Fetch All Users (Donors, Hospitals, Admins)
   async fetchAdminUsers(role = 'all', search = '') {
-    const params = {};
-    if (role && role !== 'all') params.role = role;
-    if (search && search.trim()) params.search = search.trim();
-    const response = await apiClient.get('/admin/users', { params });
-    return { data: response.data, isLive: true };
+    try {
+      const params = {};
+      if (role && role !== 'all') params.role = role;
+      if (search && search.trim()) params.search = search.trim();
+      const response = await apiClient.get('/admin/users', { params });
+      return { data: response.data, isLive: true };
+    } catch {
+      let donors = [...MOCK_DONORS];
+      if (search) donors = donors.filter(d => d.full_name?.toLowerCase().includes(search.toLowerCase()) || d.city?.toLowerCase().includes(search.toLowerCase()));
+      return { data: donors.slice(0, 50), isLive: false };
+    }
   },
 
   // Admin: Delete User (Moderation)
   async deleteAdminUser(userId) {
-    const response = await apiClient.delete(`/admin/users/${userId}`);
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.delete(`/admin/users/${userId}`);
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: { success: true }, isLive: false };
+    }
   },
 
   // Admin: Fetch Pending Verifications
   async fetchPendingVerifications() {
-    const response = await apiClient.get('/admin/users/pending-verification');
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.get('/admin/users/pending-verification');
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: [], isLive: false };
+    }
   },
 
   // Admin: Verify User
   async verifyUser(userId) {
-    const response = await apiClient.patch(`/admin/users/${userId}/verify`);
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.patch(`/admin/users/${userId}/verify`);
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: { success: true }, isLive: false };
+    }
   },
 
   // Admin: Fetch All Requests
   async fetchAdminRequests(status = 'All') {
-    const params = status && status !== 'All' ? { status } : {};
-    const response = await apiClient.get('/admin/requests', { params });
-    return { data: response.data, isLive: true };
+    try {
+      const params = status && status !== 'All' ? { status } : {};
+      const response = await apiClient.get('/admin/requests', { params });
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: MOCK_EMERGENCIES, isLive: false };
+    }
   },
 
   // Admin: Delete Request (Moderation)
   async deleteAdminRequest(requestId) {
-    const response = await apiClient.delete(`/admin/requests/${requestId}`);
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.delete(`/admin/requests/${requestId}`);
+      return { data: response.data, isLive: true };
+    } catch {
+      return { data: { success: true }, isLive: false };
+    }
   },
 
   // Admin: Fetch Platform & Moderation Stats
   async fetchAdminStats() {
-    const response = await apiClient.get('/admin/stats');
-    return { data: response.data, isLive: true };
+    try {
+      const response = await apiClient.get('/admin/stats');
+      return { data: response.data, isLive: true };
+    } catch {
+      return {
+        data: {
+          total_users: 720,
+          pending_verifications: 0,
+          verified_donors: 718,
+          active_emergencies: 3,
+          fulfilled_emergencies: 1420
+        },
+        isLive: false
+      };
+    }
   },
 
   // Notifications: Get current authenticated user's notifications
