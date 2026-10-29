@@ -121,6 +121,7 @@ frontend/.vite/
 # SQLite database & temporary files
 *.db
 backend/*.db
+!backend/pulseconnect.db
 *.sqlite3
 *.db-journal
 *.db-wal
