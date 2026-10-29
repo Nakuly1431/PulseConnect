@@ -32,6 +32,7 @@ import {
   sendFirebasePhoneOtp, 
   confirmFirebasePhoneOtp 
 } from '../services/firebase';
+import { INDIA_STATES_DATA, getStateData } from '../utils/indiaLocations';
 
 export default function SOSModal({
   isOpen,
@@ -80,6 +81,12 @@ export default function SOSModal({
   // GPS Auto-Detection State
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsStatus, setGpsStatus] = useState(null);
+
+  // State & City selection state
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const [customCityName, setCustomCityName] = useState('');
 
   // Populate data if in edit mode or reset on open
   useEffect(() => {
@@ -882,6 +889,110 @@ export default function SOSModal({
                       placeholder="e.g. Manipal Hospital Old Airport Rd"
                       className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-red-600/20 focus:border-red-600 text-base sm:text-sm font-medium"
                     />
+                  </div>
+
+                  {/* State & City Location Selector */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-red-500" />
+                        <span>Select Hospital State & City</span>
+                      </label>
+                      {selectedCity && (
+                        <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                          ✓ {isCustomCity ? (customCityName || 'Custom City') : selectedCity}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <select
+                        value={selectedState}
+                        onChange={(e) => {
+                          const st = e.target.value;
+                          setSelectedState(st);
+                          setSelectedCity('');
+                          setIsCustomCity(false);
+                          setCustomCityName('');
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500"
+                      >
+                        <option value="">-- Select State / UT (36 States) --</option>
+                        {INDIA_STATES_DATA.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+                      </select>
+
+                      <select
+                        disabled={!selectedState}
+                        value={isCustomCity ? 'OTHER_CUSTOM' : selectedCity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'OTHER_CUSTOM') {
+                            setIsCustomCity(true);
+                            setSelectedCity('Other');
+                          } else {
+                            setIsCustomCity(false);
+                            setSelectedCity(val);
+                            setCustomCityName('');
+                            const stData = getStateData(selectedState);
+                            const cObj = stData?.cities?.find(c => c.name.toLowerCase() === val.toLowerCase());
+                            if (cObj) {
+                              handleChange('latitude', parseFloat(cObj.lat.toFixed(5)));
+                              handleChange('longitude', parseFloat(cObj.lng.toFixed(5)));
+                            }
+                            if (val) {
+                              const cur = formData.hospital_locality || '';
+                              const ward = cur.split(',')[0]?.trim();
+                              handleChange('hospital_locality', ward && ward !== val ? `${ward}, ${val}, ${selectedState}` : `${val}, ${selectedState}`);
+                            }
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                      >
+                        <option value="">{selectedState ? '-- Select City / District --' : '-- Select State First --'}</option>
+                        {(getStateData(selectedState)?.cities || []).map(c => (
+                          <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                        {selectedState && (
+                          <option value="OTHER_CUSTOM" className="font-bold text-red-600 dark:text-red-400">
+                            + Other / Type Custom City...
+                          </option>
+                        )}
+                      </select>
+                    </div>
+
+                    {/* Custom City input if Other is selected */}
+                    {isCustomCity && (
+                      <div className="p-3 rounded-xl bg-red-50/80 dark:bg-red-950/40 border border-red-300 dark:border-red-800 animate-fadeIn space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-red-700 dark:text-red-300 block">
+                            Write Hospital City Name (Not Listed Above) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => { setIsCustomCity(false); setSelectedCity(''); setCustomCityName(''); }}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-red-600 underline cursor-pointer"
+                          >
+                            Back to City List
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          value={customCityName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomCityName(val);
+                            if (val.trim()) {
+                              const cur = formData.hospital_locality || '';
+                              const ward = cur.split(',')[0]?.trim();
+                              handleChange('hospital_locality', ward && ward !== val ? `${ward}, ${val}, ${selectedState}` : `${val}, ${selectedState}`);
+                            }
+                          }}
+                          placeholder={`Enter custom city in ${selectedState || 'India'} (e.g. Nashik, Siliguri, Roorkee)...`}
+                          className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-red-300 dark:border-red-700 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>

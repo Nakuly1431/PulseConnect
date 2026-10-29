@@ -41,9 +41,9 @@ class Settings(BaseSettings):
     NOTIFICATION_RADIUS_KM: float = float(os.getenv("NOTIFICATION_RADIUS_KM", "15.0"))
 
     # Real-Time SMS Gateway (Fast2SMS for India / Twilio Global)
-    FAST2SMS_API_KEY: str = ""
-    TWILIO_ACCOUNT_SID: str = ""
-    TWILIO_AUTH_TOKEN: str = ""
-    TWILIO_FROM_PHONE: str = ""
+    FAST2SMS_API_KEY: str = os.getenv("FAST2SMS_API_KEY", "")
+    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
+    TWILIO_FROM_PHONE: str = os.getenv("TWILIO_FROM_PHONE", "")
 
 settings = Settings()

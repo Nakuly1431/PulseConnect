@@ -1,10 +1,7 @@
 import React from 'react';
 
 export default class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
-  }
+  state = { hasError: false, error: null };
 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
@@ -12,83 +9,22 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("PulseConnect Uncaught Error Boundary:", error, errorInfo);
-    this.setState({ error, errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
-          backgroundColor: '#F8FAFC',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
-        }}>
-          <div style={{
-            maxWidth: '600px',
-            width: '100%',
-            backgroundColor: '#ffffff',
-            borderRadius: '24px',
-            border: '1px solid #fee2e2',
-            padding: '32px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '16px',
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              marginBottom: '16px'
-            }}>
-              ⚠️
-            </div>
-
-            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>
-              PulseConnect Interface Encountered an Issue
-            </h2>
-            <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-              A rendering component ran into an unexpected error:
-            </p>
-
-            <div style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '12px',
-              padding: '12px 16px',
-              fontSize: '13px',
-              color: '#991b1b',
-              fontFamily: 'monospace',
-              marginBottom: '20px',
-              wordBreak: 'break-all'
-            }}>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6 font-sans">
+          <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-8 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 flex items-center justify-center text-2xl mb-4">⚠️</div>
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-2">PulseConnect Interface Encountered an Issue</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">A rendering component ran into an unexpected error:</p>
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl p-3 text-xs text-red-700 dark:text-red-300 font-mono mb-5 break-all">
               {this.state.error?.toString() || 'Unknown Rendering Error'}
             </div>
-
             <button
-              onClick={() => {
-                localStorage.clear();
-                window.location.reload();
-              }}
-              style={{
-                width: '100%',
-                padding: '12px 20px',
-                borderRadius: '12px',
-                backgroundColor: '#dc2626',
-                color: '#ffffff',
-                border: 'none',
-                fontWeight: '700',
-                fontSize: '14px',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
-              }}
+              onClick={() => { localStorage.clear(); window.location.reload(); }}
+              className="w-full py-3 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
             >
               Reset Cache & Reload Application
             </button>
@@ -96,7 +32,6 @@ export default class ErrorBoundary extends React.Component {
         </div>
       );
     }
-
     return this.props.children;
   }
 }

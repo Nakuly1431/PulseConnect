@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { validateIndianPhone } from '../utils/phoneValidation';
+import { INDIA_STATES_DATA, getStateData } from '../utils/indiaLocations';
 
 // Medical Compatibility Reference
 const BLOOD_COMPATIBILITY = {
@@ -79,14 +80,10 @@ export default function ProfilePage({
     }
   }, [isAuthenticated, user, onNavigateAuth]);
 
-  if (!isAuthenticated || !user) {
-    return null;
-  }
-
-  const donor = user;
+  const donor = user || {};
   const currentBloodGroup = donor.blood_group || 'O+';
   const compatibility = BLOOD_COMPATIBILITY[currentBloodGroup] || BLOOD_COMPATIBILITY['O+'];
-  const honor = getDonorHonor(donor.total_donations);
+  const honor = getDonorHonor(donor.total_donations || 0);
 
   // State
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'medical' | 'card' | 'history'
@@ -118,38 +115,111 @@ export default function ProfilePage({
     longitude: donor.longitude || 77.5946
   });
 
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const [customCityName, setCustomCityName] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      const stData = getStateData(user.state);
+      const isKnown = stData?.cities?.some(c => c.name.toLowerCase() === (user.city || '').toLowerCase());
+      if (user.city && !isKnown) {
+        setIsCustomCity(true);
+        setCustomCityName(user.city);
+      }
+      setFormData({
+        full_name: user.full_name || '',
+        phone_number: user.phone_number || '',
+        blood_group: user.blood_group || 'O+',
+        locality: user.locality || '',
+        city: user.city || '',
+        state: user.state || '',
+        latitude: user.latitude || 12.9716,
+        longitude: user.longitude || 77.5946
+      });
+    }
+  }, [user]);
+
   const handleOpenEdit = () => {
+    const curState = donor.state || user?.state || '';
+    const curCity = donor.city || user?.city || '';
+    const stData = getStateData(curState);
+    const isKnown = stData?.cities?.some(c => c.name.toLowerCase() === curCity.toLowerCase());
+    if (curCity && !isKnown) {
+      setIsCustomCity(true);
+      setCustomCityName(curCity);
+    } else {
+      setIsCustomCity(false);
+      setCustomCityName('');
+    }
     setFormData({
       full_name: donor.full_name || '',
       phone_number: donor.phone_number || '',
       blood_group: donor.blood_group || 'O+',
       locality: donor.locality || '',
-      city: donor.city || '',
-      state: donor.state || '',
+      city: curCity,
+      state: curState,
       latitude: donor.latitude || 12.9716,
       longitude: donor.longitude || 77.5946
     });
     setIsEditModalOpen(true);
   };
 
-  // GPS Geolocation Auto-Detection
+  // GPS Geolocation Auto-Detection with High Accuracy and Street Reverse Geocoding
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
       addToast?.('Geolocation is not supported by your browser', 'error');
       return;
     }
+    addToast?.('Locking onto satellite GPS coordinates...', 'info');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setFormData(prev => ({
-          ...prev,
-          latitude: parseFloat(pos.coords.latitude.toFixed(5)),
-          longitude: parseFloat(pos.coords.longitude.toFixed(5))
-        }));
-        addToast?.('Current GPS location coordinates retrieved!', 'success');
+      async (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(5));
+        const lng = parseFloat(pos.coords.longitude.toFixed(5));
+
+        let detectedCity = '', detectedState = '', detectedArea = '';
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`, { headers: { 'Accept-Language': 'en' } });
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            detectedState = addr.state || '';
+            detectedCity = addr.city || addr.town || addr.municipality || addr.district || addr.county || addr.suburb || '';
+            detectedArea = addr.suburb || addr.neighbourhood || addr.residential || addr.road || '';
+          }
+        } catch { /* ignore */ }
+
+        setFormData(prev => {
+          const nextState = detectedState || prev.state;
+          const nextCity = detectedCity || prev.city;
+          const nextLocality = detectedArea ? (prev.locality ? `${detectedArea}, ${prev.locality}` : detectedArea) : prev.locality;
+
+          if (nextState && nextCity) {
+            const stData = getStateData(nextState);
+            const inList = stData?.cities?.some(c => c.name.toLowerCase() === nextCity.toLowerCase());
+            if (!inList) {
+              setIsCustomCity(true);
+              setCustomCityName(nextCity);
+            } else {
+              setIsCustomCity(false);
+              setCustomCityName('');
+            }
+          }
+
+          return {
+            ...prev,
+            latitude: lat,
+            longitude: lng,
+            ...(detectedState && { state: nextState }),
+            ...(detectedCity && { city: nextCity }),
+            ...(detectedArea && { locality: nextLocality })
+          };
+        });
+        addToast?.(`Current GPS location retrieved (${lat}, ${lng})!`, 'success');
       },
       () => {
-        addToast?.('Unable to retrieve location. Please check browser permissions.', 'error');
-      }
+        addToast?.('Unable to retrieve location. Please check browser permissions and device location.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -197,6 +267,8 @@ export default function ProfilePage({
   };
 
   const calculateLivesSaved = (donations) => (donations || 0) * 3;
+
+  if (!isAuthenticated || !user) return null;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 animate-fadeIn">
@@ -305,6 +377,19 @@ export default function ProfilePage({
         </div>
       )}
 
+      {/* Pending Admin Verification Banner */}
+      {donor.role === 'admin' && !donor.is_verified && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex items-start gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-fadeIn">
+          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div className="text-xs space-y-1">
+            <strong className="font-bold">Administrator Application Pending Review:</strong>
+            <p className="text-amber-800/90 dark:text-amber-300 leading-relaxed">
+              Your registration requesting Administrator privileges is currently awaiting approval by an active administrator. Administrative portal controls and elevated directory permissions remain locked until verification is completed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hero Profile Dossier Card */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-600 via-rose-600 to-rose-700 text-white p-6 sm:p-8 shadow-xl shadow-red-600/15">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
@@ -317,8 +402,8 @@ export default function ProfilePage({
                 <span className="text-3xl sm:text-4xl font-black tracking-tight">{donor.blood_group}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-red-100 mt-0.5">RH Type</span>
               </div>
-              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 border-2 border-white text-white shadow" title="Medical Status Verified">
-                <ShieldCheck className="w-3.5 h-3.5" />
+              <span className={`absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-white shadow ${donor.is_verified ? 'bg-emerald-500' : 'bg-amber-500'}`} title={donor.is_verified ? 'Status Verified' : 'Pending Verification'}>
+                {donor.is_verified ? <ShieldCheck className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
               </span>
             </div>
 
@@ -326,10 +411,29 @@ export default function ProfilePage({
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{donor.full_name}</h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-white/25 backdrop-blur-md text-white text-xs font-extrabold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                  Verified Donor
-                </span>
+                {donor.role === 'admin' ? (
+                  donor.is_verified ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/30 text-white text-xs font-extrabold flex items-center gap-1 border border-purple-300/40">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-200" />
+                      Verified Administrator
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/30 text-white text-xs font-extrabold flex items-center gap-1 border border-amber-300/40">
+                      <Clock className="w-3.5 h-3.5 text-amber-200" />
+                      Admin Approval Pending
+                    </span>
+                  )
+                ) : donor.is_verified ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/25 backdrop-blur-md text-white text-xs font-extrabold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                    Verified Donor
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/30 text-white text-xs font-extrabold flex items-center gap-1 border border-amber-300/40">
+                    <Clock className="w-3.5 h-3.5 text-amber-200" />
+                    Unverified Donor
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs sm:text-sm text-red-100 font-medium">
@@ -978,34 +1082,96 @@ export default function ProfilePage({
                 />
               </div>
 
+              {/* State & City selectors with Other option */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    City *
+                    State / UT
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.city}
-                    onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
-                    placeholder="e.g. Bengaluru"
-                  />
+                  <select
+                    value={formData.state}
+                    onChange={(e) => {
+                      const st = e.target.value;
+                      setFormData(prev => ({ ...prev, state: st }));
+                      const stData = getStateData(st);
+                      if (stData && !isCustomCity) {
+                        const inList = stData.cities.some(c => c.name.toLowerCase() === (formData.city || '').toLowerCase());
+                        if (!inList && stData.cities[0]) {
+                          setFormData(prev => ({ ...prev, city: stData.cities[0].name }));
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  >
+                    <option value="">-- Select State / UT --</option>
+                    {INDIA_STATES_DATA.map(s => (
+                      <option key={s.state} value={s.state}>{s.state}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    State
+                    City / District *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.state}
-                    onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
-                    placeholder="e.g. Karnataka"
-                  />
+                  <select
+                    value={isCustomCity ? 'OTHER_CUSTOM' : formData.city}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'OTHER_CUSTOM') {
+                        setIsCustomCity(true);
+                      } else {
+                        setIsCustomCity(false);
+                        setCustomCityName('');
+                        setFormData(prev => ({ ...prev, city: val }));
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  >
+                    <option value="" disabled>-- Select City --</option>
+                    {(getStateData(formData.state)?.cities || []).map(c => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                    <option value="OTHER_CUSTOM" className="font-bold text-red-600 dark:text-red-400">
+                      + Other / Type Custom City...
+                    </option>
+                  </select>
                 </div>
               </div>
+
+              {/* Custom City input if Other selected */}
+              {isCustomCity && (
+                <div className="p-3 rounded-2xl bg-red-50/60 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 animate-fadeIn space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-red-700 dark:text-red-400 block">
+                      Write Custom City Name (Not Listed Above) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCity(false);
+                        const first = getStateData(formData.state)?.cities?.[0]?.name || '';
+                        setFormData(prev => ({ ...prev, city: first }));
+                      }}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-red-600 dark:text-slate-400 underline cursor-pointer"
+                    >
+                      Back to City List
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={customCityName || formData.city}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomCityName(val);
+                      setFormData(prev => ({ ...prev, city: val }));
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl border border-red-300 dark:border-red-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    placeholder="e.g. Nashik, Siliguri, Roorkee, Sambalpur..."
+                  />
+                </div>
+              )}
 
               {/* GPS Geolocation Coordinates */}
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">

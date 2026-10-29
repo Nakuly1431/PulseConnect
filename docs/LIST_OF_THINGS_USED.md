@@ -71,7 +71,7 @@ This document provides a comprehensive and exhaustive inventory of all technolog
 | **Pydantic** | `>=2.6.0` | Data validation and settings management using Python type hints, ensuring strict request payload and response schema contracts. |
 | **Pydantic Settings** | `>=2.0.0` | Environment variable parsing and type-safe configuration loading from `.env` files. |
 | **PyJWT** | `>=2.8.0` | Implementation of JSON Web Tokens (JWT) for user authentication, token generation, signature validation, and claims expiration handling. |
-| **Bcrypt** | `>=4.1.0` | Cryptographic password-hashing algorithm utilizing salted Blowfish hashing for user password storage. |
+| **Bcrypt & OTP Reset Engine** | `>=4.1.0` | Cryptographic password-hashing algorithm utilizing salted Blowfish hashing for user passwords, paired with timed 6-digit OTP authentication for secure password recovery and resets. |
 | **Python-Multipart** | `>=0.0.9` | Streaming multipart/form-data parser for file uploads (medical certificates, government donor identity verification proofs). |
 | **Requests** | `>=2.31.0` | Synchronous HTTP library used for outbound API calls to SMS delivery gateways (Fast2SMS, Twilio). |
 | **Email-Validator** | `>=2.0.0` | Robust email address validation checking syntax, deliverability, and domain requirements according to RFC standards. |
@@ -110,8 +110,9 @@ This document provides a comprehensive and exhaustive inventory of all technolog
 | **Google Firebase Phone Auth** | Client-side SDK (`firebase/auth`) | Real SMS OTP delivery to mobile devices, backed by Google's Invisible reCAPTCHA verification (10,000 free SMS/month). |
 | **Fast2SMS API** | Outbound HTTP POST (`requests`) | Direct Indian SMS gateway delivering instant transactional OTPs without complex DLT registration overhead. |
 | **Twilio SMS REST API** | Outbound HTTP POST (`requests`) | Global SMS provider fallback for international and enterprise notifications. |
-| **HTML5 Geolocation API** | Browser Native (`navigator.geolocation`) | Automatically detects donor/requester latitude and longitude with precision accuracy. |
-| **OpenStreetMap / Nominatim** | Web API & Geolocation | Provides location queries and coordinate-based regional identification for hospital landmarks. |
+| **HTML5 Geolocation API** | Browser Native (`navigator.geolocation`) | Automatically detects donor/requester latitude and longitude with high-accuracy satellite/Wi-Fi positioning. |
+| **OpenStreetMap / Nominatim** | Web API & Geolocation | Provides location queries, reverse geocoding, and coordinate-based regional identification for hospital landmarks. |
+| **Pan-India Location & Custom City Engine** | Local Dataset + Dynamic User Inputs | Full coverage of all 36 Indian States & UTs with district coordinates plus seamless "Other / Custom City" write-in support across all pages. |
 
 ---
 

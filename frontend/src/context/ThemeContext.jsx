@@ -3,52 +3,27 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  // Theme state: 'light' | 'dark' | 'system'
-  const [theme, setThemeState] = useState(() => {
-    return localStorage.getItem('pulse_theme') || 'system';
-  });
-
+  const [theme, setThemeState] = useState(() => localStorage.getItem('pulse_theme') || 'system');
   const [resolvedTheme, setResolvedTheme] = useState('light');
 
   useEffect(() => {
     const root = document.documentElement;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    const applyTheme = () => {
-      let isDark = false;
-      if (theme === 'system') {
-        isDark = mediaQuery.matches;
-      } else {
-        isDark = theme === 'dark';
-      }
-
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const isDark = theme === 'system' ? media.matches : theme === 'dark';
       setResolvedTheme(isDark ? 'dark' : 'light');
-
-      if (isDark) {
-        root.classList.add('dark');
-        root.style.colorScheme = 'dark';
-      } else {
-        root.classList.remove('dark');
-        root.style.colorScheme = 'light';
-      }
+      root.classList.toggle('dark', isDark);
+      root.style.colorScheme = isDark ? 'dark' : 'light';
     };
-
-    applyTheme();
-
-    // Listen for OS/Device level changes if 'system' is selected
-    const handleSystemChange = () => {
-      if (theme === 'system') {
-        applyTheme();
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleSystemChange);
-    return () => mediaQuery.removeEventListener('change', handleSystemChange);
+    apply();
+    const listener = () => { if (theme === 'system') apply(); };
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
   }, [theme]);
 
-  const setTheme = (newTheme) => {
-    setThemeState(newTheme);
-    localStorage.setItem('pulse_theme', newTheme);
+  const setTheme = (t) => {
+    setThemeState(t);
+    localStorage.setItem('pulse_theme', t);
   };
 
   return (
@@ -58,10 +33,9 @@ export function ThemeProvider({ children }) {
   );
 }
 
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
-}
+// eslint-disable-next-line react-refresh/only-export-components
+export const useTheme = () => {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useTheme must be used within a ThemeProvider');
+  return ctx;
+};

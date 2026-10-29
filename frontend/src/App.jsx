@@ -122,7 +122,7 @@ function AppContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedBloodGroup, onlyAvailable, searchQuery, radiusKm, searchCenter, currentDonor]);
+  }, [selectedBloodGroup, onlyAvailable, searchQuery, radiusKm, searchCenter]);
 
   // Sync currentDonor with authenticated user
   useEffect(() => {
@@ -426,28 +426,54 @@ function AppContent() {
             <AuthPage
               initialTab="login"
               onNavigate={setCurrentView}
-              onSuccess={() => {
+              onSuccess={(loggedUser) => {
                 addToast('Signed in successfully!', 'success');
-                setCurrentView('profile');
+                if ((loggedUser?.role === 'admin' || user?.role === 'admin') && (loggedUser?.is_verified ?? user?.is_verified)) {
+                  setCurrentView('admin');
+                } else {
+                  setCurrentView('profile');
+                }
               }}
             />
           )
         )}
 
         {currentView === 'admin' && (
-          <AdminPage
-            onNavigateBack={() => setCurrentView('acceptor')}
-            addToast={addToast}
-          />
+          user?.role === 'admin' && Boolean(user?.is_verified) ? (
+            <AdminPage
+              onNavigateBack={() => setCurrentView('acceptor')}
+              addToast={addToast}
+            />
+          ) : (
+            <div className="max-w-md mx-auto my-16 p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-xl">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-600 flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Admin Approval Required</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Your account does not have verified Administrator privileges. Access to the Admin Portal requires review and verification by an active administrator.
+              </p>
+              <button
+                onClick={() => setCurrentView('acceptor')}
+                className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+              >
+                Return to Home
+              </button>
+            </div>
+          )
         )}
 
         {(currentView === 'login' || currentView === 'register') && (
           <AuthPage
             initialTab={currentView === 'register' ? 'register' : 'login'}
             onNavigate={setCurrentView}
-            onSuccess={() => {
+            onSuccess={(loggedUser) => {
               addToast('Signed in successfully!', 'success');
-              setCurrentView('profile');
+              if ((loggedUser?.role === 'admin' || user?.role === 'admin') && (loggedUser?.is_verified ?? user?.is_verified)) {
+                setCurrentView('admin');
+              } else {
+                setCurrentView('profile');
+              }
             }}
           />
         )}
@@ -496,7 +522,7 @@ function AppContent() {
             >
               User Profile
             </button>
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' && Boolean(user?.is_verified) && (
               <>
                 <span>•</span>
                 <button

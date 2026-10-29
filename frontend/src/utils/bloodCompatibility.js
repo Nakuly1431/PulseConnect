@@ -2,145 +2,70 @@ export const BLOOD_GROUPS = ['All', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 
 export const DONOR_BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 export const BLOOD_COMPATIBILITY_MAP = {
-  'A+': ['A+', 'A-', 'O+', 'O-'],
-  'A-': ['A-', 'O-'],
-  'B+': ['B+', 'B-', 'O+', 'O-'],
-  'B-': ['B-', 'O-'],
-  'AB+': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'], // Universal Recipient
+  'A+': ['A+', 'A-', 'O+', 'O-'], 'A-': ['A-', 'O-'],
+  'B+': ['B+', 'B-', 'O+', 'O-'], 'B-': ['B-', 'O-'],
+  'AB+': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
   'AB-': ['AB-', 'A-', 'B-', 'O-'],
-  'O+': ['O+', 'O-'],
-  'O-': ['O-'], // Universal Donor can only receive O-
+  'O+': ['O+', 'O-'], 'O-': ['O-']
 };
 
 export function getCompatibleDonorTypes(recipientGroup) {
   if (!recipientGroup || recipientGroup === 'All') return DONOR_BLOOD_GROUPS;
-  const normalized = recipientGroup.trim().toUpperCase().replace(/\s+/g, '+');
-  return BLOOD_COMPATIBILITY_MAP[normalized] || [normalized];
+  const norm = recipientGroup.trim().toUpperCase().replace(/\s+/g, '+');
+  return BLOOD_COMPATIBILITY_MAP[norm] || [norm];
 }
 
 export function isBloodCompatible(donorGroup, recipientGroup) {
   if (!donorGroup || !recipientGroup || recipientGroup === 'All') return true;
   const normDonor = donorGroup.trim().toUpperCase().replace(/\s+/g, '+');
-  const compatibleTypes = getCompatibleDonorTypes(recipientGroup);
-  return compatibleTypes.includes(normDonor);
+  return getCompatibleDonorTypes(recipientGroup).includes(normDonor);
 }
 
 export function formatDistance(km) {
-  if (km === null || km === undefined || isNaN(km)) return 'Nearby';
+  if (km == null || isNaN(km)) return 'Nearby';
   const num = Number(km);
-  if (num < 1) return `${Math.round(num * 1000)} m away`;
-  return `${num.toFixed(1)} km away`;
+  return num < 1 ? `${Math.round(num * 1000)} m away` : `${num.toFixed(1)} km away`;
 }
 
 export function formatTimeAgo(timestamp) {
   if (!timestamp) return 'Just now';
   try {
-    const cleanTs = typeof timestamp === 'string' ? timestamp.replace(' ', 'T') : timestamp;
-    const past = new Date(cleanTs);
+    const past = new Date(typeof timestamp === 'string' ? timestamp.replace(' ', 'T') : timestamp);
     if (isNaN(past.getTime())) return 'Recently';
-    const now = new Date();
-    const diffMinutes = Math.max(1, Math.round((now.getTime() - past.getTime()) / (1000 * 60)));
-
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    const mins = Math.max(1, Math.round((Date.now() - past.getTime()) / 60000));
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    return hrs < 24 ? `${hrs}h ago` : `${Math.floor(hrs / 24)}d ago`;
   } catch {
     return 'Recently';
   }
-
-
 }
-
 
 export function maskPhoneNumber(phone) {
   if (!phone) return '+91 ••••• ••••';
   const digits = phone.replace(/\D/g, '');
   if (digits.length <= 4) return '••••';
   const prefix = phone.includes('+91') ? '+91' : digits.slice(0, 2);
-  const suffix = digits.slice(-4);
-  return `${prefix} ••••• ${suffix}`;
+  return `${prefix} ••••• ${digits.slice(-4)}`;
 }
 
 export function getCooldownInfo(donor) {
-  if (!donor) {
-    return {
-      isInCooldown: false,
-      daysRemaining: 0,
-      cooldownUntil: null,
-      lastDonationDate: null,
-      progressPercent: 100,
-      totalDonations: 0
-    };
-  }
+  const def = { isInCooldown: false, daysRemaining: 0, cooldownUntil: donor?.cooldown_until || null, lastDonationDate: donor?.last_donation_date || null, progressPercent: 100, totalDonations: donor?.total_donations || 0 };
+  if (!donor) return def;
 
-  const cooldownDateStr = donor.cooldown_until;
-  const lastDonationDate = donor.last_donation_date || null;
-  const totalDonations = donor.total_donations || 0;
-
-  // 1. Prioritize authoritative backend fields if provided in UserResponse
   if (donor.is_in_cooldown !== undefined && donor.cooldown_days_remaining !== undefined) {
-    const isInCooldown = Boolean(donor.is_in_cooldown);
-    const daysRemaining = Math.max(0, Number(donor.cooldown_days_remaining) || 0);
-    const elapsedDays = Math.max(0, 90 - daysRemaining);
-    const progressPercent = isInCooldown
-      ? Math.min(100, Math.max(0, Math.round((elapsedDays / 90) * 100)))
-      : 100;
-    return {
-      isInCooldown,
-      daysRemaining,
-      cooldownUntil: cooldownDateStr,
-      lastDonationDate,
-      progressPercent,
-      totalDonations
-    };
+    const isCool = Boolean(donor.is_in_cooldown);
+    const rem = Math.max(0, Number(donor.cooldown_days_remaining) || 0);
+    return { ...def, isInCooldown: isCool, daysRemaining: rem, progressPercent: isCool ? Math.min(100, Math.max(0, Math.round(((90 - rem) / 90) * 100))) : 100 };
   }
 
-  if (!cooldownDateStr) {
-    return {
-      isInCooldown: false,
-      daysRemaining: 0,
-      cooldownUntil: null,
-      lastDonationDate,
-      progressPercent: 100,
-      totalDonations
-    };
-  }
-
-  // 2. Parse ISO date (YYYY-MM-DD) as local calendar date to avoid UTC midnight shifts
-  let targetDay;
-  if (typeof cooldownDateStr === 'string' && cooldownDateStr.includes('-')) {
-    const [y, m, d] = cooldownDateStr.split('T')[0].split('-').map(Number);
-    targetDay = new Date(y, m - 1, d);
-  } else {
-    targetDay = new Date(cooldownDateStr);
-  }
-
+  if (!donor.cooldown_until) return def;
+  const parts = typeof donor.cooldown_until === 'string' && donor.cooldown_until.includes('-') ? donor.cooldown_until.split('T')[0].split('-').map(Number) : null;
+  const target = parts ? new Date(parts[0], parts[1] - 1, parts[2]) : new Date(donor.cooldown_until);
   const now = new Date();
-  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffTime = targetDay.getTime() - nowDay.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+  const diffDays = Math.ceil((target.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86400000);
   if (diffDays > 0) {
-    const elapsedDays = Math.max(0, 90 - diffDays);
-    const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedDays / 90) * 100)));
-    return {
-      isInCooldown: true,
-      daysRemaining: diffDays,
-      cooldownUntil: cooldownDateStr,
-      lastDonationDate,
-      progressPercent,
-      totalDonations
-    };
+    return { ...def, isInCooldown: true, daysRemaining: diffDays, progressPercent: Math.min(100, Math.max(0, Math.round(((90 - diffDays) / 90) * 100))) };
   }
-
-  return {
-    isInCooldown: false,
-    daysRemaining: 0,
-    cooldownUntil: cooldownDateStr,
-    lastDonationDate,
-    progressPercent: 100,
-    totalDonations
-  };
+  return def;
 }

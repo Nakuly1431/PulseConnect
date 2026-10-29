@@ -24,6 +24,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
+    admin_secret_key: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -59,7 +60,7 @@ class UserResponse(BaseModel):
     blood_group: str
     latitude: Optional[float] = 0.0
     longitude: Optional[float] = 0.0
-    locality: str
+    locality: Optional[str] = "Bengaluru"
     city: Optional[str] = None
     state: Optional[str] = None
     is_available: bool
@@ -85,3 +86,11 @@ class Token(BaseModel):
 
 class AvailabilityToggle(BaseModel):
     is_available: Optional[bool] = None
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str = Field(..., min_length=4, max_length=10)
+    new_password: str = Field(..., min_length=6)

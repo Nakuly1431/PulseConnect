@@ -12,10 +12,12 @@
 
 ---
 
-## 📖 Detailed Project Inventory
+## 📖 Project Documentation
 
-Looking for an exhaustive breakdown of every tool, library, package, service, and algorithm used?
-👉 **Check out the separate documentation:** **[docs/LIST_OF_THINGS_USED.md](./docs/LIST_OF_THINGS_USED.md)**
+Looking for detailed technical documentation, specifications, or architectural inventory?
+- 📑 **[Comprehensive Project Report (Markdown)](./docs/PROJECT_REPORT.md)** & **[Microsoft Word Report (.docx)](./docs/PulseConnect_Project_Report.docx)**: Complete academic and engineering report covering executive summary, problem statement, literature survey, system design (ER, DFD, sequence diagrams), mathematical models, implementation breakdown, testing validation, and future roadmap.
+- 📑 **[Software Requirements Specification (SRS)](./docs/SRS_DOCUMENT.md)**: Formal IEEE 830 / ISO/IEC/IEEE 29148 specification detailing functional requirements (FR-01 to FR-12), non-functional requirements, data models, ER diagrams, DFDs, and mathematical engines.
+- 📋 **[List of Things Used in this Project](./docs/LIST_OF_THINGS_USED.md)**: Exhaustive breakdown of every programming language, library, framework, service, algorithm, and dataset used across the platform.
 
 ---
 

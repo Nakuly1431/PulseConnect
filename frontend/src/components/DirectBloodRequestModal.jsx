@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { BLOOD_GROUPS } from '../utils/bloodCompatibility';
 import { api } from '../services/api';
+import { INDIA_STATES_DATA, getStateData } from '../utils/indiaLocations';
 
 const COMPONENT_OPTIONS = [
   'Whole Blood',
@@ -32,15 +33,13 @@ export default function DirectBloodRequestModal({
   donor,
   onSubmit
 }) {
-  if (!isOpen || !donor) return null;
-
   const [formData, setFormData] = useState({
     patient_name: '',
-    blood_group: donor.blood_group || 'O+',
+    blood_group: donor?.blood_group || 'O+',
     units_needed: 1,
     component_type: 'Whole Blood',
     hospital_name: '',
-    hospital_locality: donor.locality || '',
+    hospital_locality: donor?.locality || '',
     requester_name: '',
     requester_phone: '',
     relationship: 'Family Member',
@@ -58,6 +57,43 @@ export default function DirectBloodRequestModal({
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [debugOtp, setDebugOtp] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+
+  // State & City selection state
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [isCustomCity, setIsCustomCity] = useState(false);
+  const [customCityName, setCustomCityName] = useState('');
+
+  // Sync form when modal opens or donor changes
+  React.useEffect(() => {
+    if (isOpen && donor) {
+      setFormData({
+        patient_name: '',
+        blood_group: donor.blood_group || 'O+',
+        units_needed: 1,
+        component_type: 'Whole Blood',
+        hospital_name: '',
+        hospital_locality: donor.locality || '',
+        requester_name: '',
+        requester_phone: '',
+        relationship: 'Family Member',
+        urgency_level: 'Immediate',
+        notes: ''
+      });
+      setSelectedState('');
+      setSelectedCity('');
+      setIsCustomCity(false);
+      setCustomCityName('');
+      setIsSubmitting(false);
+      setErrorMessage('');
+      setOtpCode('');
+      setIsSendingOtp(false);
+      setIsOtpSent(false);
+      setIsPhoneVerified(false);
+      setDebugOtp('');
+      setResendTimer(0);
+    }
+  }, [isOpen, donor]);
 
   // Timer countdown
   React.useEffect(() => {
@@ -151,6 +187,8 @@ export default function DirectBloodRequestModal({
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen || !donor) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-md overflow-y-auto animate-fadeIn">
@@ -302,6 +340,110 @@ export default function DirectBloodRequestModal({
             <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <Building className="w-3.5 h-3.5 text-red-500" />
               <span>2. Hospital Location</span>
+            </div>
+
+            {/* State & City Location Selector */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-red-500" />
+                  <span>Hospital City / District</span>
+                </span>
+                {selectedCity && (
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    ✓ {isCustomCity ? (customCityName || 'Custom City') : selectedCity}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <select
+                  value={selectedState}
+                  onChange={(e) => {
+                    const st = e.target.value;
+                    setSelectedState(st);
+                    setSelectedCity('');
+                    setIsCustomCity(false);
+                    setCustomCityName('');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">-- Choose State / UT --</option>
+                  {INDIA_STATES_DATA.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+                </select>
+
+                <select
+                  disabled={!selectedState}
+                  value={isCustomCity ? 'OTHER_CUSTOM' : selectedCity}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'OTHER_CUSTOM') {
+                      setIsCustomCity(true);
+                      setSelectedCity('Other');
+                    } else {
+                      setIsCustomCity(false);
+                      setSelectedCity(val);
+                      setCustomCityName('');
+                      if (val) {
+                        const cur = formData.hospital_locality || '';
+                        const ward = cur.split(',')[0]?.trim();
+                        setFormData(prev => ({
+                          ...prev,
+                          hospital_locality: ward && ward !== val ? `${ward}, ${val}, ${selectedState}` : `${val}, ${selectedState}`
+                        }));
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  <option value="">{selectedState ? '-- Select City / District --' : '-- Select State First --'}</option>
+                  {(getStateData(selectedState)?.cities || []).map(c => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                  {selectedState && (
+                    <option value="OTHER_CUSTOM" className="font-bold text-red-600 dark:text-red-400">
+                      + Other / Type Custom City...
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              {/* Custom City input if Other selected */}
+              {isCustomCity && (
+                <div className="p-3 rounded-xl bg-red-50/80 dark:bg-red-950/40 border border-red-300 dark:border-red-800 animate-fadeIn space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-red-700 dark:text-red-300 block">
+                      Write Hospital City Name (Not Listed Above) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => { setIsCustomCity(false); setSelectedCity(''); setCustomCityName(''); }}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-red-600 underline cursor-pointer"
+                    >
+                      Back to City List
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={customCityName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomCityName(val);
+                      if (val.trim()) {
+                        const cur = formData.hospital_locality || '';
+                        const ward = cur.split(',')[0]?.trim();
+                        setFormData(prev => ({
+                          ...prev,
+                          hospital_locality: ward && ward !== val ? `${ward}, ${val}, ${selectedState}` : `${val}, ${selectedState}`
+                        }));
+                      }
+                    }}
+                    placeholder={`Enter custom city in ${selectedState || 'India'} (e.g. Nashik, Siliguri, Roorkee)...`}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-red-300 dark:border-red-700 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

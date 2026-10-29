@@ -28,7 +28,7 @@ class EmergencyResponse(BaseModel):
     units_needed: int
     component_type: str
     hospital_name: str
-    hospital_locality: str
+    hospital_locality: Optional[str] = ""
     latitude: Optional[float] = 0.0
     longitude: Optional[float] = 0.0
     urgency_level: str
@@ -39,7 +39,7 @@ class EmergencyResponse(BaseModel):
     posted_by_verified_hospital: bool = False
     distance_km: Optional[float] = None
     edit_token: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
